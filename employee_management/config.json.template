@@ -1,0 +1,43 @@
+{
+  "zoho_desk": {
+    "api_url": "https://desk.zoho.com/api/v1",
+    "org_id": "YOUR_ORG_ID",
+    "api_token": "YOUR_API_TOKEN",
+    "notes": "Get API token from Zoho Desk > Setup > API > Generate Token"
+  },
+  "zoho_projects": {
+    "api_url": "https://projectsapi.zoho.com/api/v3",
+    "portal_id": "YOUR_PORTAL_ID",
+    "api_token": "YOUR_API_TOKEN",
+    "notes": "Get API token from Zoho Projects > Settings > API > Generate Token"
+  },
+  "microsoft_graph": {
+    "tenant_id": "YOUR_TENANT_ID",
+    "client_id": "YOUR_CLIENT_ID",
+    "client_secret": "YOUR_CLIENT_SECRET",
+    "notes": "Create app registration in Azure AD for Graph API access"
+  },
+  "datto_rmm": {
+    "api_url": "https://pinotage-api.centrastage.net",
+    "api_key": "YOUR_API_KEY",
+    "api_secret": "YOUR_API_SECRET",
+    "notes": "Get API credentials from Datto RMM > Setup > API Credentials"
+  },
+  "notification": {
+    "email_from": "it@midcloudcomputing.com",
+    "smtp_server": "smtp.office365.com",
+    "smtp_port": 587,
+    "smtp_username": "YOUR_SMTP_USERNAME",
+    "smtp_password": "YOUR_SMTP_PASSWORD"
+  },
+  "team": {
+    "it_manager": {
+      "name": "IT Manager Name",
+      "email": "manager@midcloudcomputing.com"
+    },
+    "hr_contact": {
+      "name": "HR Contact Name",
+      "email": "hr@midcloudcomputing.com"
+    }
+  }
+}

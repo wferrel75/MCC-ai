@@ -1,0 +1,488 @@
+{
+  "name": "MCC - Employee Off-boarding Initiation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "offboarding-initiate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-start",
+      "name": "Webhook - Off-boarding Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "offboarding-init",
+      "notes": "Trigger this workflow manually or via API call with employee details"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "employee_id",
+              "value": "={{ $json.body.employee_id }}"
+            },
+            {
+              "name": "employee_name",
+              "value": "={{ $json.body.employee_name }}"
+            },
+            {
+              "name": "employee_email",
+              "value": "={{ $json.body.employee_email }}"
+            },
+            {
+              "name": "role",
+              "value": "={{ $json.body.role }}"
+            },
+            {
+              "name": "departure_type",
+              "value": "={{ $json.body.departure_type }}"
+            },
+            {
+              "name": "last_working_day",
+              "value": "={{ $json.body.last_working_day }}"
+            },
+            {
+              "name": "manager_name",
+              "value": "={{ $json.body.manager_name }}"
+            },
+            {
+              "name": "manager_email",
+              "value": "={{ $json.body.manager_email }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-employee-data",
+      "name": "Set Employee Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.role }}",
+              "operation": "equals",
+              "value2": "helpdesk"
+            }
+          ]
+        }
+      },
+      "id": "is-helpdesk",
+      "name": "Is Helpdesk Engineer?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "command": "python3 /home/wferrel/employee_management/offboarding_automation.py --employee {{ $json.employee_id }} --name \"{{ $json.employee_name }}\" --email {{ $json.employee_email }} --role {{ $json.role }}"
+      },
+      "id": "run-automation-helpdesk",
+      "name": "Run Automation (Helpdesk)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [850, 200],
+      "notes": "Generates full off-boarding report including customer assignments"
+    },
+    {
+      "parameters": {
+        "command": "python3 /home/wferrel/employee_management/offboarding_automation.py --employee {{ $json.employee_id }} --name \"{{ $json.employee_name }}\" --email {{ $json.employee_email }} --role {{ $json.role }}"
+      },
+      "id": "run-automation-standard",
+      "name": "Run Automation (Standard)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [850, 400],
+      "notes": "Generates standard off-boarding report"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "ticket",
+        "operation": "create",
+        "organizationId": "={{ $env.ZOHO_DESK_ORG_ID }}",
+        "departmentId": "={{ $env.ZOHO_DESK_IT_DEPT_ID }}",
+        "additionalFields": {
+          "subject": "Employee Off-boarding - {{ $('Set Employee Data').item.json.employee_name }}",
+          "description": "EMPLOYEE OFF-BOARDING INITIATED\\n\\nEmployee Information:\\n- Name: {{ $('Set Employee Data').item.json.employee_name }}\\n- Employee ID: {{ $('Set Employee Data').item.json.employee_id }}\\n- Email: {{ $('Set Employee Data').item.json.employee_email }}\\n- Role: {{ $('Set Employee Data').item.json.role }}\\n- Manager: {{ $('Set Employee Data').item.json.manager_name }}\\n\\nDeparture Details:\\n- Type: {{ $('Set Employee Data').item.json.departure_type }}\\n- Last Working Day: {{ $('Set Employee Data').item.json.last_working_day }}\\n\\nAutomated reports have been generated and attached.\\n\\nNext Actions:\\n1. Review generated reports\\n2. Approve reassignment plan\\n3. Execute access revocation\\n4. Notify customers (if applicable)\\n5. Complete knowledge transfer",
+          "priority": "={{ $('Set Employee Data').item.json.departure_type === 'Termination' ? 'High' : 'Medium' }}",
+          "status": "Open",
+          "assigneeId": "={{ $env.ZOHO_DESK_IT_MANAGER_ID }}",
+          "cf": {
+            "employee_id": "={{ $('Set Employee Data').item.json.employee_id }}",
+            "employee_email": "={{ $('Set Employee Data').item.json.employee_email }}",
+            "role": "={{ $('Set Employee Data').item.json.role }}",
+            "departure_type": "={{ $('Set Employee Data').item.json.departure_type }}",
+            "last_working_day": "={{ $('Set Employee Data').item.json.last_working_day }}"
+          }
+        }
+      },
+      "id": "create-zoho-ticket",
+      "name": "Create Zoho Desk Ticket",
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "1",
+          "name": "Zoho Desk OAuth2"
+        }
+      },
+      "notes": "Creates tracking ticket in Zoho Desk"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "project",
+        "operation": "create",
+        "portalId": "={{ $env.ZOHO_PROJECTS_PORTAL_ID }}",
+        "additionalFields": {
+          "name": "Off-boarding: {{ $('Set Employee Data').item.json.employee_name }} - {{ $('Set Employee Data').item.json.role }}",
+          "description": "Manage the off-boarding process for {{ $('Set Employee Data').item.json.employee_name }}, ensuring smooth transition of responsibilities, access revocation, and customer continuity.",
+          "start_date": "={{ $now.format('yyyy-MM-dd') }}",
+          "end_date": "={{ $('Set Employee Data').item.json.last_working_day }}",
+          "owner": "={{ $env.ZOHO_PROJECTS_IT_MANAGER_ID }}"
+        }
+      },
+      "id": "create-zoho-project",
+      "name": "Create Zoho Projects Project",
+      "type": "n8n-nodes-base.zohoProjects",
+      "typeVersion": 1,
+      "position": [1050, 450],
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "1",
+          "name": "Zoho Projects OAuth2"
+        }
+      },
+      "notes": "Creates off-boarding project in Zoho Projects"
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MCC_IT_EMAIL }}",
+        "toEmail": "={{ $env.MCC_IT_MANAGER_EMAIL }}",
+        "subject": "[ACTION REQUIRED] Employee Off-boarding - {{ $('Set Employee Data').item.json.employee_name }}",
+        "emailFormat": "html",
+        "message": "<h2>Employee Off-boarding Initiated</h2><p>An employee off-boarding has been initiated:</p><ul><li><strong>Employee:</strong> {{ $('Set Employee Data').item.json.employee_name }}</li><li><strong>Role:</strong> {{ $('Set Employee Data').item.json.role }}</li><li><strong>Last Day:</strong> {{ $('Set Employee Data').item.json.last_working_day }}</li><li><strong>Type:</strong> {{ $('Set Employee Data').item.json.departure_type }}</li></ul><p>A comprehensive off-boarding report has been generated.</p><h3>Please review and approve:</h3><ul><li>Access revocation checklist</li><li>Ticket reassignment plan</li>{{ $('Is Helpdesk Engineer?').item.json.role === 'helpdesk' ? '<li>Customer transition plan</li>' : '' }}</ul><p><strong>Zoho Desk Ticket:</strong> #{{ $('Create Zoho Desk Ticket').item.json.id }}<br><strong>Zoho Project:</strong> {{ $('Create Zoho Projects Project').item.json.name }}</p><p><em>This is an automated notification from MCC Off-boarding System</em></p>",
+        "options": {
+          "ccEmail": "={{ $('Set Employee Data').item.json.manager_email }},{{ $env.MCC_HR_EMAIL }}"
+        }
+      },
+      "id": "notify-it-manager",
+      "name": "Notify IT Manager",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "credentials": {
+        "smtp": {
+          "id": "1",
+          "name": "MCC SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MCC_IT_EMAIL }}",
+        "toEmail": "={{ $env.MCC_HR_EMAIL }}",
+        "subject": "Off-boarding Process Started - {{ $('Set Employee Data').item.json.employee_name }}",
+        "emailFormat": "html",
+        "message": "<h2>IT Off-boarding Process Initiated</h2><p>The IT off-boarding process has been initiated for <strong>{{ $('Set Employee Data').item.json.employee_name }}</strong>.</p><h3>IT will coordinate:</h3><ul><li>Access revocation</li><li>Equipment return</li>{{ $('Is Helpdesk Engineer?').item.json.role === 'helpdesk' ? '<li>Customer transition</li>' : '' }}</ul><h3>Please coordinate:</h3><ul><li>Exit interview</li><li>Final payroll</li><li>Benefits termination</li></ul><p><strong>Zoho Desk Ticket:</strong> #{{ $('Create Zoho Desk Ticket').item.json.id }}</p><p><em>This is an automated notification from MCC Off-boarding System</em></p>",
+        "options": {}
+      },
+      "id": "notify-hr",
+      "name": "Notify HR",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1250, 450]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $('Set Employee Data').item.json.departure_type }}",
+              "operation": "equals",
+              "value2": "Termination"
+            }
+          ]
+        }
+      },
+      "id": "is-immediate",
+      "name": "Is Immediate Termination?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $env.ACCESS_REVOCATION_WORKFLOW_ID }}",
+        "parameters": {
+          "employee_id": "={{ $('Set Employee Data').item.json.employee_id }}",
+          "employee_name": "={{ $('Set Employee Data').item.json.employee_name }}",
+          "employee_email": "={{ $('Set Employee Data').item.json.employee_email }}",
+          "immediate": "true"
+        }
+      },
+      "id": "trigger-immediate-access",
+      "name": "Trigger Immediate Access Revocation",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1650, 200],
+      "notes": "For terminations, trigger access revocation immediately"
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $env.TICKET_REASSIGNMENT_WORKFLOW_ID }}",
+        "parameters": {
+          "employee_email": "={{ $('Set Employee Data').item.json.employee_email }}",
+          "employee_name": "={{ $('Set Employee Data').item.json.employee_name }}",
+          "urgent": "={{ $('Set Employee Data').item.json.departure_type === 'Termination' ? 'true' : 'false' }}"
+        }
+      },
+      "id": "trigger-ticket-reassign",
+      "name": "Trigger Ticket Reassignment",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1650, 350],
+      "notes": "Trigger ticket reassignment workflow"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $('Set Employee Data').item.json.role }}",
+              "operation": "equals",
+              "value2": "helpdesk"
+            }
+          ]
+        }
+      },
+      "id": "is-helpdesk-for-customer",
+      "name": "Is Helpdesk (Customer Transition)?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1650, 500]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $env.CUSTOMER_TRANSITION_WORKFLOW_ID }}",
+        "parameters": {
+          "employee_id": "={{ $('Set Employee Data').item.json.employee_id }}",
+          "employee_name": "={{ $('Set Employee Data').item.json.employee_name }}",
+          "employee_email": "={{ $('Set Employee Data').item.json.employee_email }}",
+          "departure_type": "={{ $('Set Employee Data').item.json.departure_type }}"
+        }
+      },
+      "id": "trigger-customer-transition",
+      "name": "Trigger Customer Transition",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1850, 450],
+      "notes": "Trigger customer transition workflow for helpdesk engineers"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"message\": \"Off-boarding process initiated\",\n  \"employee\": $('Set Employee Data').item.json.employee_name,\n  \"zoho_ticket_id\": $('Create Zoho Desk Ticket').item.json.id,\n  \"zoho_project_id\": $('Create Zoho Projects Project').item.json.id,\n  \"workflows_triggered\": [\n    $('Is Immediate Termination?').item.json.departure_type === 'Termination' ? 'access_revocation' : null,\n    'ticket_reassignment',\n    $('Is Helpdesk Engineer?').item.json.role === 'helpdesk' ? 'customer_transition' : null\n  ].filter(x => x !== null)\n} }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2050, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Off-boarding Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Employee Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Employee Data": {
+      "main": [
+        [
+          {
+            "node": "Is Helpdesk Engineer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Helpdesk Engineer?": {
+      "main": [
+        [
+          {
+            "node": "Run Automation (Helpdesk)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Run Automation (Standard)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Automation (Helpdesk)": {
+      "main": [
+        [
+          {
+            "node": "Create Zoho Desk Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Automation (Standard)": {
+      "main": [
+        [
+          {
+            "node": "Create Zoho Desk Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Zoho Desk Ticket": {
+      "main": [
+        [
+          {
+            "node": "Create Zoho Projects Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Zoho Projects Project": {
+      "main": [
+        [
+          {
+            "node": "Notify IT Manager",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify HR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify IT Manager": {
+      "main": [
+        [
+          {
+            "node": "Is Immediate Termination?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify HR": {
+      "main": [
+        [
+          {
+            "node": "Is Immediate Termination?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Immediate Termination?": {
+      "main": [
+        [
+          {
+            "node": "Trigger Immediate Access Revocation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Trigger Ticket Reassignment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trigger Ticket Reassignment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Ticket Reassignment": {
+      "main": [
+        [
+          {
+            "node": "Is Helpdesk (Customer Transition)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Helpdesk (Customer Transition)?": {
+      "main": [
+        [
+          {
+            "node": "Trigger Customer Transition",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Customer Transition": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-11-25T15:30:00.000Z",
+  "versionId": "1"
+}

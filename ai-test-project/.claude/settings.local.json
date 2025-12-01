@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:jsberrylaw.com)",
+      "WebFetch(domain:www.alkarbilliards.com)",
+      "WebFetch(domain:www.conterraag.com)",
+      "WebFetch(domain:www.thecfgadvisors.com)",
+      "WebFetch(domain:eslaw.com)",
+      "WebFetch(domain:www.giud.com)",
+      "WebFetch(domain:helgetgas.com)",
+      "WebFetch(domain:www.helgetinc.com)",
+      "WebFetch(domain:www.hfctransport.com)",
+      "WebFetch(domain:www.hobbytown.com)",
+      "WebFetch(domain:www.kisselkohoutes.com)",
+      "WebFetch(domain:www.labenz.com)",
+      "WebFetch(domain:www.lesterelectrical.com)",
+      "WebFetch(domain:maxumstaffing.com)",
+      "WebFetch(domain:www.omahaelectric.com)",
+      "WebFetch(domain:www.paramountcres.com)",
+      "WebFetch(domain:www.skrupalawoffice.com)",
+      "WebFetch(domain:sys-kool.com)",
+      "WebFetch(domain:www.garrettgp.com)",
+      "WebFetch(domain:www.vintonball.com)",
+      "Bash(for company in \"GIUD\" \"Helget_Inc\" \"HFC_Transport\" \"Kissel_Kohout_ES\" \"Labenz\" \"Lester_Electrical\" \"Maxum_Staffing\" \"Omaha_Electric\" \"Paramount_CRES\" \"Skrupa_Law\" \"Sys-Kool\" \"Garrett_Group\" \"Vinton_Ball\")",
+      "Bash(do)",
+      "Bash(if [ ! -f \"$company_questions.md\" ])",
+      "Bash(then)",
+      "Bash(echo:*)",
+      "Bash(fi)",
+      "Bash(done)",
+      "WebFetch(domain:www.helgetgas.com)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebSearch",
+      "WebFetch(domain:lamprynearson.com)",
+      "WebFetch(domain:www.crowellhome.com)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "/home/wferrel/Customer_Profiles/"
+    ]
+  }
+}

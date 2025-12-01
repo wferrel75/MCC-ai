@@ -1,0 +1,616 @@
+{
+  "name": "MCC - Off-boarding Monitoring & Audit",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule - Daily Audit",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 400],
+      "notes": "Runs daily to check active off-boarding processes"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  ob.offboarding_id,\n  ob.employee_id,\n  ob.employee_name,\n  ob.employee_email,\n  ob.departure_date,\n  ob.departure_type,\n  ob.status,\n  ob.created_at,\n  DATEDIFF(day, ob.departure_date, CURRENT_DATE) as days_since_departure\nFROM offboarding_tracking ob\nWHERE ob.status IN ('in_progress', 'monitoring')\n  AND DATEDIFF(day, ob.departure_date, CURRENT_DATE) <= 30\nORDER BY ob.departure_date DESC",
+        "options": {}
+      },
+      "id": "get-active-offboardings",
+      "name": "Get Active Off-boardings",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [450, 400],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "PostgreSQL - MCC Database"
+        }
+      },
+      "notes": "Get all off-boarding processes in monitoring phase"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "process-each",
+      "name": "Process Each Off-boarding",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "user",
+        "operation": "get",
+        "userId": "={{ $json.employee_email }}"
+      },
+      "id": "check-entra-account",
+      "name": "Check Entra ID Account Status",
+      "type": "n8n-nodes-base.microsoftGraphApi",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "continueOnFail": true,
+      "credentials": {
+        "microsoftGraphApiOAuth2": {
+          "id": "1",
+          "name": "Microsoft Graph API OAuth2"
+        }
+      },
+      "notes": "Verify account is disabled or deleted"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "other",
+        "operation": "makeRequest",
+        "requestMethod": "GET",
+        "endpoint": "/users/{{ $json.employee_email }}/mailboxSettings"
+      },
+      "id": "check-mailbox",
+      "name": "Check Mailbox Status",
+      "type": "n8n-nodes-base.microsoftGraphApi",
+      "typeVersion": 1,
+      "position": [850, 450],
+      "continueOnFail": true,
+      "notes": "Verify mailbox converted/auto-reply set"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "ticket",
+        "operation": "getAll",
+        "organizationId": "={{ $env.ZOHO_DESK_ORG_ID }}",
+        "filters": {
+          "assigneeEmail": "={{ $json.employee_email }}",
+          "status": "Open,In Progress,On Hold"
+        },
+        "returnAll": true
+      },
+      "id": "check-remaining-tickets",
+      "name": "Check for Remaining Tickets",
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [850, 600],
+      "continueOnFail": true,
+      "notes": "Verify no tickets remain assigned"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as remaining_customers\nFROM customers\nWHERE primary_contact_email = '{{ $json.employee_email }}'",
+        "options": {}
+      },
+      "id": "check-customer-assignments",
+      "name": "Check Customer Assignments",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [850, 750],
+      "continueOnFail": true,
+      "notes": "Verify all customers transitioned"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compile audit results\nconst offboarding = $('Process Each Off-boarding').item.json;\nconst entraCheck = $('Check Entra ID Account Status').item.json;\nconst mailboxCheck = $('Check Mailbox Status').item.json;\nconst ticketsCheck = $('Check for Remaining Tickets').all();\nconst customersCheck = $('Check Customer Assignments').item.json;\n\nconst issues = [];\nconst warnings = [];\n\n// Check Entra ID status\nif (entraCheck?.accountEnabled === true) {\n  issues.push('❌ CRITICAL: Entra ID account is still ENABLED');\n} else if (entraCheck?.accountEnabled === false) {\n  // Good\n} else if (!entraCheck) {\n  // Account deleted - also good\n}\n\n// Check for remaining tickets\nif (ticketsCheck.length > 0) {\n  issues.push(`❌ CRITICAL: ${ticketsCheck.length} tickets still assigned to user`);\n}\n\n// Check for remaining customer assignments\nif (customersCheck?.remaining_customers > 0) {\n  issues.push(`❌ CRITICAL: ${customersCheck.remaining_customers} customers still assigned to user`);\n}\n\n// Check auto-reply\nif (mailboxCheck?.automaticRepliesSetting?.status !== 'scheduled') {\n  warnings.push('⚠️ WARNING: Out-of-office auto-reply not configured');\n}\n\n// Days since departure\nconst daysSince = offboarding.days_since_departure;\nif (daysSince === 1 && issues.length > 0) {\n  // Day 1 audit - critical if issues exist\n} else if (daysSince === 7 && (issues.length > 0 || warnings.length > 0)) {\n  // Week 1 review\n} else if (daysSince === 30) {\n  // Final 30-day review\n}\n\nreturn [{\n  json: {\n    offboarding_id: offboarding.offboarding_id,\n    employee_name: offboarding.employee_name,\n    employee_email: offboarding.employee_email,\n    days_since_departure: daysSince,\n    audit_timestamp: new Date().toISOString(),\n    status: issues.length > 0 ? 'failed' : warnings.length > 0 ? 'warning' : 'passed',\n    issues: issues,\n    warnings: warnings,\n    checks: {\n      entra_account_disabled: entraCheck?.accountEnabled === false || !entraCheck,\n      mailbox_auto_reply: mailboxCheck?.automaticRepliesSetting?.status === 'scheduled',\n      no_tickets_assigned: ticketsCheck.length === 0,\n      no_customers_assigned: customersCheck?.remaining_customers === 0\n    }\n  }\n}];"
+      },
+      "id": "compile-audit",
+      "name": "Compile Audit Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equals",
+              "value2": "failed"
+            }
+          ]
+        }
+      },
+      "id": "has-critical-issues",
+      "name": "Has Critical Issues?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MCC_IT_EMAIL }}",
+        "toEmail": "={{ $env.MCC_IT_MANAGER_EMAIL }}",
+        "subject": "🚨 CRITICAL: Off-boarding Audit Failed - {{ $json.employee_name }}",
+        "emailFormat": "html",
+        "message": "<h2 style='color: red;'>🚨 Critical Off-boarding Audit Issues</h2><p><strong>Employee:</strong> {{ $json.employee_name }}<br><strong>Email:</strong> {{ $json.employee_email }}<br><strong>Days Since Departure:</strong> {{ $json.days_since_departure }}<br><strong>Audit Time:</strong> {{ $json.audit_timestamp }}</p><h3>Critical Issues Found:</h3><ul>{{ $json.issues.map(i => '<li style=\"color: red;\">' + i + '</li>').join('') }}</ul>{{ $json.warnings.length > 0 ? '<h3>Warnings:</h3><ul>' + $json.warnings.map(w => '<li style=\"color: orange;\">' + w + '</li>').join('') + '</ul>' : '' }}<h3>Action Required:</h3><p>Please address these issues <strong>immediately</strong> to ensure security and compliance.</p><h3>Audit Details:</h3><ul><li>Entra Account Disabled: {{ $json.checks.entra_account_disabled ? '✅ Yes' : '❌ No' }}</li><li>Mailbox Auto-Reply Set: {{ $json.checks.mailbox_auto_reply ? '✅ Yes' : '⚠️ No' }}</li><li>No Tickets Assigned: {{ $json.checks.no_tickets_assigned ? '✅ Yes' : '❌ No' }}</li><li>No Customers Assigned: {{ $json.checks.no_customers_assigned ? '✅ Yes' : '❌ No' }}</li></ul>",
+        "options": {
+          "priority": "high"
+        }
+      },
+      "id": "alert-critical",
+      "name": "Send Critical Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1450, 300],
+      "notes": "Alert for critical audit failures"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equals",
+              "value2": "warning"
+            }
+          ]
+        }
+      },
+      "id": "has-warnings",
+      "name": "Has Warnings?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1450, 500]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MCC_IT_EMAIL }}",
+        "toEmail": "={{ $env.MCC_IT_MANAGER_EMAIL }}",
+        "subject": "⚠️ Off-boarding Audit Warning - {{ $json.employee_name }}",
+        "emailFormat": "html",
+        "message": "<h2 style='color: orange;'>⚠️ Off-boarding Audit Warnings</h2><p><strong>Employee:</strong> {{ $json.employee_name }}<br><strong>Days Since Departure:</strong> {{ $json.days_since_departure }}<br><strong>Audit Time:</strong> {{ $json.audit_timestamp }}</p><h3>Warnings:</h3><ul>{{ $json.warnings.map(w => '<li>' + w + '</li>').join('') }}</ul><p>Please review and address when convenient.</p>",
+        "options": {}
+      },
+      "id": "send-warning",
+      "name": "Send Warning Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1650, 450]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO offboarding_audit_log (\n  offboarding_id,\n  audit_date,\n  status,\n  issues,\n  warnings,\n  checks_json\n) VALUES (\n  '{{ $json.offboarding_id }}',\n  NOW(),\n  '{{ $json.status }}',\n  '{{ JSON.stringify($json.issues) }}',\n  '{{ JSON.stringify($json.warnings) }}',\n  '{{ JSON.stringify($json.checks) }}'\n)",
+        "options": {}
+      },
+      "id": "log-audit",
+      "name": "Log Audit Results",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [1650, 600],
+      "notes": "Store audit results in database"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.days_since_departure }}",
+              "operation": "equal",
+              "value2": 30
+            }
+          ],
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equals",
+              "value2": "passed"
+            }
+          ],
+          "combineOperation": "all"
+        }
+      },
+      "id": "is-30day-complete",
+      "name": "Is 30-Day Complete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE offboarding_tracking\nSET status = 'completed',\n    completed_at = NOW()\nWHERE offboarding_id = '{{ $json.offboarding_id }}'",
+        "options": {}
+      },
+      "id": "mark-complete",
+      "name": "Mark Off-boarding Complete",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [2050, 350]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "ticket",
+        "operation": "update",
+        "organizationId": "={{ $env.ZOHO_DESK_ORG_ID }}",
+        "ticketId": "={{ $json.zoho_ticket_id }}",
+        "updateFields": {
+          "status": "Closed",
+          "comment": "Off-boarding completed successfully. 30-day monitoring period complete with no issues."
+        }
+      },
+      "id": "close-zoho-ticket",
+      "name": "Close Zoho Desk Ticket",
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [2050, 500]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MCC_IT_EMAIL }}",
+        "toEmail": "={{ $env.MCC_IT_MANAGER_EMAIL }}",
+        "subject": "✅ Off-boarding Completed - {{ $json.employee_name }}",
+        "emailFormat": "html",
+        "message": "<h2 style='color: green;'>✅ Off-boarding Successfully Completed</h2><p><strong>Employee:</strong> {{ $json.employee_name }}<br><strong>Departure Date:</strong> {{ $json.departure_date }}<br><strong>Completion Date:</strong> {{ $now.format('yyyy-MM-dd') }}</p><p>The 30-day monitoring period has completed successfully with all requirements met:</p><ul><li>✅ Access fully revoked</li><li>✅ All tickets reassigned</li><li>✅ All customers transitioned</li><li>✅ No outstanding issues</li></ul><p>The off-boarding process for this employee is now complete.</p>",
+        "options": {}
+      },
+      "id": "notify-completion",
+      "name": "Notify Completion",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [2250, 400]
+    },
+    {
+      "parameters": {},
+      "id": "loop-back",
+      "name": "Process Next",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2450, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate daily summary report\nconst allAudits = $('Compile Audit Results').all().map(item => item.json);\n\nconst summary = {\n  date: new Date().toISOString().split('T')[0],\n  total_audited: allAudits.length,\n  passed: allAudits.filter(a => a.status === 'passed').length,\n  warnings: allAudits.filter(a => a.status === 'warning').length,\n  failed: allAudits.filter(a => a.status === 'failed').length,\n  completed: allAudits.filter(a => a.days_since_departure === 30 && a.status === 'passed').length,\n  audits: allAudits\n};\n\nreturn [{json: summary}];"
+      },
+      "id": "generate-summary",
+      "name": "Generate Daily Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 600]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.total_audited }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "has-audits",
+      "name": "Has Audits to Report?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2450, 600]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MCC_IT_EMAIL }}",
+        "toEmail": "={{ $env.MCC_IT_MANAGER_EMAIL }}",
+        "subject": "Off-boarding Daily Audit Report - {{ $json.date }}",
+        "emailFormat": "html",
+        "message": "<h2>Off-boarding Daily Audit Report</h2><p><strong>Date:</strong> {{ $json.date }}</p><h3>Summary:</h3><ul><li>Total Audited: {{ $json.total_audited }}</li><li>✅ Passed: {{ $json.passed }}</li><li>⚠️ Warnings: {{ $json.warnings }}</li><li>❌ Failed: {{ $json.failed }}</li><li>🎉 Completed: {{ $json.completed }}</li></ul>{{ $json.failed > 0 || $json.warnings > 0 ? '<h3>Items Requiring Attention:</h3><table border=\"1\" cellpadding=\"8\" style=\"border-collapse: collapse;\"><tr style=\"background-color: #f0f0f0;\"><th>Employee</th><th>Days Since Departure</th><th>Status</th><th>Issues</th></tr>' + $json.audits.filter(a => a.status !== 'passed').map(a => '<tr><td>' + a.employee_name + '</td><td>' + a.days_since_departure + '</td><td>' + a.status + '</td><td>' + (a.issues.length > 0 ? a.issues.join(', ') : a.warnings.join(', ')) + '</td></tr>').join('') + '</table>' : '<p><em>All off-boarding processes are on track with no issues.</em></p>' }}",
+        "options": {}
+      },
+      "id": "send-daily-report",
+      "name": "Send Daily Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [2650, 550]
+    }
+  ],
+  "connections": {
+    "Schedule - Daily Audit": {
+      "main": [
+        [
+          {
+            "node": "Get Active Off-boardings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Off-boardings": {
+      "main": [
+        [
+          {
+            "node": "Process Each Off-boarding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Each Off-boarding": {
+      "main": [
+        [
+          {
+            "node": "Check Entra ID Account Status",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Mailbox Status",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check for Remaining Tickets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Customer Assignments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Daily Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Entra ID Account Status": {
+      "main": [
+        [
+          {
+            "node": "Compile Audit Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Mailbox Status": {
+      "main": [
+        [
+          {
+            "node": "Compile Audit Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Remaining Tickets": {
+      "main": [
+        [
+          {
+            "node": "Compile Audit Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Customer Assignments": {
+      "main": [
+        [
+          {
+            "node": "Compile Audit Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Audit Results": {
+      "main": [
+        [
+          {
+            "node": "Has Critical Issues?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Critical Issues?": {
+      "main": [
+        [
+          {
+            "node": "Send Critical Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has Warnings?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Critical Alert": {
+      "main": [
+        [
+          {
+            "node": "Log Audit Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Warnings?": {
+      "main": [
+        [
+          {
+            "node": "Send Warning Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Audit Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Warning Notification": {
+      "main": [
+        [
+          {
+            "node": "Log Audit Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Audit Results": {
+      "main": [
+        [
+          {
+            "node": "Is 30-Day Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is 30-Day Complete?": {
+      "main": [
+        [
+          {
+            "node": "Mark Off-boarding Complete",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Close Zoho Desk Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Next",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Off-boarding Complete": {
+      "main": [
+        [
+          {
+            "node": "Notify Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close Zoho Desk Ticket": {
+      "main": [
+        [
+          {
+            "node": "Notify Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Completion": {
+      "main": [
+        [
+          {
+            "node": "Process Next",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Next": {
+      "main": [
+        [
+          {
+            "node": "Process Each Off-boarding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Daily Summary": {
+      "main": [
+        [
+          {
+            "node": "Has Audits to Report?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Audits to Report?": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-11-25T15:30:00.000Z",
+  "versionId": "1"
+}

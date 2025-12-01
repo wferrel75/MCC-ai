@@ -1,0 +1,58 @@
+Datto
+	RMM
+		Create Site
+		Deploy Agent
+	AV / EDR
+	Setup Organization
+	Move Site from Default RMM Org.
+		Confirm Rules
+		Push Agent
+Email Filtering (Barracuda)
+	Create Tennant
+	Import / Invite Users
+	Configure DNS Records
+	Configure Mail hosting configuration (M365)
+	Schedule quarantine notification emails
+	Enable any known whitelisting rules / blocks
+	Test Mailflow
+Credentials Transfer	
+	Create Customer in Keeper
+	Leverage secure transfer method to populate credentials in Keeper
+Create Customer in Keeper
+	Configure Customer in Portal
+	Confirm agent deployment settings in Datto
+	Deploy agent and perform initial scan / discovery
+Create Customer in Keeper
+	Obtain Global Admin Credentials
+	Granular Permissions
+		MCC
+		D&H Cloud
+Ticketing System  (Zoho Desk)	
+	Import customer and verify account from CRM
+	Confirm / Create contacts
+	Create custom forms as needed.
+	Assign appropriate SLA for customer.
+Document employee  Onboarding / Offboarding Processes
+	Define Customer Roles
+		Role Names
+		Licenses for Roles
+		Software for Roles
+		Current Users in Roles
+	AD / Azure / M365 
+		Username Format
+RocketCyber
+	Configure integrations
+RocketCyber
+	Setup Tenant(s)
+	Configure Backup Plans
+	Deploy Agents
+Printer Logic
+	Create Demo Tennant
+	Source Drivers
+	Setup Printer queues
+	Import from Print Server
+	Create New Printer Queues
+	Configure Rules for Print Queues
+	Deploy Agent
+	Testing
+	Convert Tennant to Production+

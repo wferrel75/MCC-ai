@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:www.amazon.com)",
+      "WebFetch(domain:www.walmart.com)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

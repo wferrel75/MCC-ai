@@ -1,0 +1,560 @@
+{
+  "name": "MCC - Customer Transition Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "customer-transition",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Customer Transition Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 400],
+      "webhookId": "customer-transition"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "employee_id",
+              "value": "={{ $json.body.employee_id || $json.employee_id }}"
+            },
+            {
+              "name": "employee_name",
+              "value": "={{ $json.body.employee_name || $json.employee_name }}"
+            },
+            {
+              "name": "employee_email",
+              "value": "={{ $json.body.employee_email || $json.employee_email }}"
+            },
+            {
+              "name": "departure_type",
+              "value": "={{ $json.body.departure_type || $json.departure_type }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-params",
+      "name": "Set Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  c.customer_id,\n  c.customer_name,\n  c.customer_email,\n  c.tier,\n  c.primary_contact_id,\n  COUNT(DISTINCT t.ticket_id) as active_tickets,\n  COUNT(DISTINCT p.project_id) as active_projects,\n  MAX(i.interaction_date) as last_interaction,\n  c.technical_notes,\n  c.communication_preferences\nFROM customers c\nLEFT JOIN tickets t ON c.customer_id = t.customer_id AND t.status IN ('Open', 'In Progress')\nLEFT JOIN projects p ON c.customer_id = p.customer_id AND p.status = 'Active'\nLEFT JOIN interactions i ON c.customer_id = i.customer_id\nWHERE c.primary_contact_email = '{{ $json.employee_email }}'\nGROUP BY c.customer_id, c.customer_name, c.customer_email, c.tier, c.primary_contact_id, c.technical_notes, c.communication_preferences\nORDER BY c.tier DESC, active_tickets DESC",
+        "options": {}
+      },
+      "id": "get-customer-assignments",
+      "name": "Get Customer Assignments",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [650, 400],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "PostgreSQL - MCC Database"
+        }
+      },
+      "notes": "Query all customers where employee is primary contact"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  user_id,\n  user_name,\n  user_email,\n  COUNT(*) as customer_count,\n  specialties,\n  avg_customer_satisfaction\nFROM technician_workload\nWHERE is_active = true\n  AND role = 'helpdesk'\n  AND user_email != '{{ $('Set Parameters').item.json.employee_email }}'\nGROUP BY user_id, user_name, user_email, specialties, avg_customer_satisfaction\nORDER BY customer_count ASC, avg_customer_satisfaction DESC\nLIMIT 10",
+        "options": {}
+      },
+      "id": "get-available-engineers",
+      "name": "Get Available Engineers",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [650, 550],
+      "notes": "Find engineers available for customer reassignment"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Intelligent customer assignment logic\nconst customers = $('Get Customer Assignments').all().map(item => item.json);\nconst engineers = $('Get Available Engineers').all().map(item => item.json);\n\nconst assignments = [];\nlet engineerIndex = 0;\n\n// Sort customers by priority (Premium tier first, then by active tickets)\nconst sortedCustomers = customers.sort((a, b) => {\n  if (a.tier === 'Premium' && b.tier !== 'Premium') return -1;\n  if (a.tier !== 'Premium' && b.tier === 'Premium') return 1;\n  return b.active_tickets - a.active_tickets;\n});\n\nsortedCustomers.forEach(customer => {\n  const assignedEngineer = engineers[engineerIndex % engineers.length];\n  \n  assignments.push({\n    customer_id: customer.customer_id,\n    customer_name: customer.customer_name,\n    customer_email: customer.customer_email,\n    customer_tier: customer.tier,\n    active_tickets: customer.active_tickets,\n    active_projects: customer.active_projects,\n    last_interaction: customer.last_interaction,\n    technical_notes: customer.technical_notes,\n    communication_preferences: customer.communication_preferences,\n    departing_engineer: $('Set Parameters').item.json.employee_name,\n    new_engineer_id: assignedEngineer.user_id,\n    new_engineer_name: assignedEngineer.user_name,\n    new_engineer_email: assignedEngineer.user_email,\n    new_engineer_specialties: assignedEngineer.specialties,\n    transition_priority: customer.tier === 'Premium' ? 'High' : 'Medium',\n    requires_call: customer.tier === 'Premium' || customer.active_projects > 0\n  });\n  \n  engineerIndex++;\n});\n\nreturn assignments.map(a => ({json: a}));"
+      },
+      "id": "assign-customers",
+      "name": "Assign Customers to Engineers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 400],
+      "notes": "Intelligently match customers to engineers"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-customers",
+      "name": "Process Each Customer",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "command": "python3 /home/wferrel/employee_management/offboarding_automation.py --customer-transition \"{{ $json.customer_name }}\" \"{{ $json.departing_engineer }}\" \"{{ $json.new_engineer_name }}\"",
+        "options": {}
+      },
+      "id": "generate-transition-doc",
+      "name": "Generate Transition Document",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1250, 400],
+      "notes": "Run Python script to generate customer transition doc"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "filePath": "={{ '/home/wferrel/employee_management/customer_transition_' + $json.customer_id + '_' + $now.format('yyyyMMdd') + '.md' }}",
+        "options": {}
+      },
+      "id": "read-transition-doc",
+      "name": "Read Transition Document",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.customer_tier }}",
+              "operation": "equals",
+              "value2": "Premium"
+            }
+          ],
+          "boolean": [
+            {
+              "value1": "={{ $json.requires_call }}",
+              "value2": true
+            }
+          ],
+          "combineOperation": "any"
+        }
+      },
+      "id": "needs-personal-intro",
+      "name": "Needs Personal Introduction?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1650, 400]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $json.departing_engineer_email || $env.MCC_IT_EMAIL }}",
+        "toEmail": "={{ $json.customer_email }}",
+        "subject": "Your MCC Support Team - Introduction to {{ $json.new_engineer_name }}",
+        "emailFormat": "html",
+        "message": "<p>Dear {{ $json.customer_name }},</p><p>I wanted to personally introduce you to <strong>{{ $json.new_engineer_name }}</strong>, who will be your primary technical contact at Midwest Cloud Computing going forward.</p><p>{{ $json.new_engineer_name }} brings extensive experience in {{ $json.new_engineer_specialties || 'IT support and infrastructure management' }} and has been fully briefed on your environment and ongoing projects.</p>{{ $json.departure_type === 'Resignation' ? '<p>I\'ll be working closely with ' + $json.new_engineer_name + ' over my remaining time to ensure a seamless transition.</p>' : '<p>' + $json.new_engineer_name + ' is ready to continue providing you with the excellent service you expect from MCC.</p>' }}<p><strong>{{ $json.new_engineer_name }} can be reached at:</strong><br>📧 Email: {{ $json.new_engineer_email }}<br>📞 Phone: +1-402-702-5000<br>💬 Teams: {{ $json.new_engineer_email }}</p>{{ $json.requires_call ? '<p>{{ $json.new_engineer_name }} will be reaching out to schedule a brief introduction call at your convenience.</p>' : '' }}<p>As always, our entire team remains available for support 24/7 at support@midcloudcomputing.com or +1-402-702-5000.</p><p>Thank you for your continued partnership with MCC.</p><p>Best regards,<br>{{ $json.departing_engineer }}<br>Midwest Cloud Computing</p>",
+        "options": {
+          "ccEmail": "={{ $json.new_engineer_email }},{{ $env.MCC_IT_MANAGER_EMAIL }}",
+          "attachments": "filePath:{{ $('Read Transition Document').item.binary.data }}"
+        }
+      },
+      "id": "send-premium-intro",
+      "name": "Send Premium Customer Introduction",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1850, 300],
+      "notes": "Personal introduction email for premium/high-touch customers"
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MCC_IT_EMAIL }}",
+        "toEmail": "={{ $json.customer_email }}",
+        "subject": "Update on Your MCC Support Contact",
+        "emailFormat": "html",
+        "message": "<p>Dear {{ $json.customer_name }},</p><p>We wanted to inform you of a change to your MCC support team. <strong>{{ $json.new_engineer_name }}</strong> will be your new primary technical contact going forward.</p><p>{{ $json.new_engineer_name }} has been fully briefed on your systems and is ready to continue providing you with excellent service.</p><p><strong>Your new contact:</strong><br>{{ $json.new_engineer_name }}<br>{{ $json.new_engineer_email }}<br>+1-402-702-5000</p><p>As always, our entire support team is available 24/7 to assist you.</p><p>Thank you for your continued partnership with Midwest Cloud Computing.</p><p>Best regards,<br>MCC Support Team</p>",
+        "options": {
+          "ccEmail": "={{ $json.new_engineer_email }}"
+        }
+      },
+      "id": "send-standard-intro",
+      "name": "Send Standard Customer Introduction",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1850, 500],
+      "notes": "Standard introduction email for regular customers"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE customers \nSET primary_contact_id = '{{ $json.new_engineer_id }}',\n    primary_contact_name = '{{ $json.new_engineer_name }}',\n    primary_contact_email = '{{ $json.new_engineer_email }}',\n    updated_at = NOW(),\n    transition_date = NOW()\nWHERE customer_id = '{{ $json.customer_id }}'",
+        "options": {}
+      },
+      "id": "update-customer-db",
+      "name": "Update Customer Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [2050, 400],
+      "notes": "Update customer record with new primary contact"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DATTO_RMM_API_URL }}/sites/{{ $json.customer_id }}/primaryTechnician",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.DATTO_RMM_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "technicianId",
+              "value": "={{ $json.new_engineer_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-datto-contact",
+      "name": "Update Datto RMM Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2050, 550],
+      "notes": "Update primary technician in Datto RMM"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "transition_logged",
+              "value": "={{ {\n  customer: $json.customer_name,\n  from: $json.departing_engineer,\n  to: $json.new_engineer_name,\n  timestamp: $now.toISO(),\n  email_sent: true,\n  systems_updated: true\n} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-transition",
+      "name": "Log Transition",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [2250, 400]
+    },
+    {
+      "parameters": {},
+      "id": "loop-back",
+      "name": "Loop to Next Customer",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2450, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "summary",
+              "value": "={{ {\n  employee: $('Set Parameters').item.json.employee_name,\n  total_customers: $('Get Customer Assignments').all().length,\n  premium_customers: $('Get Customer Assignments').all().filter(c => c.json.tier === 'Premium').length,\n  transitions_completed: $('Log Transition').all().length,\n  engineers_involved: [...new Set($('Assign Customers to Engineers').all().map(a => a.json.new_engineer_name))].length,\n  timestamp: $now.toISO()\n} }}",
+              "type": "object"
+            },
+            {
+              "name": "transitions",
+              "value": "={{ $('Log Transition').all().map(t => t.json.transition_logged) }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "compile-summary",
+      "name": "Compile Transition Summary",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [2250, 600]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "comment",
+        "operation": "create",
+        "organizationId": "={{ $env.ZOHO_DESK_ORG_ID }}",
+        "ticketId": "={{ $('Set Parameters').item.json.zoho_ticket_id }}",
+        "content": "<h3>Customer Transitions Completed</h3><p><strong>Employee:</strong> {{ $('Compile Transition Summary').item.json.summary.employee }}<br><strong>Timestamp:</strong> {{ $('Compile Transition Summary').item.json.summary.timestamp }}</p><h4>Transition Summary:</h4><ul><li>Total Customers: {{ $('Compile Transition Summary').item.json.summary.total_customers }}</li><li>Premium Customers: {{ $('Compile Transition Summary').item.json.summary.premium_customers }}</li><li>Transitions Completed: {{ $('Compile Transition Summary').item.json.summary.transitions_completed }}</li><li>Engineers Involved: {{ $('Compile Transition Summary').item.json.summary.engineers_involved }}</li></ul><h4>Customer Details:</h4><table border='1' cellpadding='5'><tr><th>Customer</th><th>From</th><th>To</th><th>Completed</th></tr>{{ $('Compile Transition Summary').item.json.transitions.map(t => '<tr><td>' + t.customer + '</td><td>' + t.from + '</td><td>' + t.to + '</td><td>' + t.timestamp + '</td></tr>').join('') }}</table><p><em>All customer transitions completed. Monitor for 30 days.</em></p>",
+        "additionalFields": {
+          "isPublic": false
+        }
+      },
+      "id": "update-offboarding-ticket",
+      "name": "Update Off-boarding Ticket",
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [2450, 600]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MCC_IT_EMAIL }}",
+        "toEmail": "={{ $env.MCC_IT_MANAGER_EMAIL }}",
+        "subject": "Customer Transitions Completed - {{ $('Set Parameters').item.json.employee_name }}",
+        "emailFormat": "html",
+        "message": "<h2>Customer Transition Summary</h2><p><strong>Employee:</strong> {{ $('Compile Transition Summary').item.json.summary.employee }}<br><strong>Completed:</strong> {{ $('Compile Transition Summary').item.json.summary.timestamp }}</p><h3>Transitions Completed:</h3><ul><li>Total Customers: {{ $('Compile Transition Summary').item.json.summary.total_customers }}</li><li>Premium Customers: {{ $('Compile Transition Summary').item.json.summary.premium_customers }}</li><li>Engineers Involved: {{ $('Compile Transition Summary').item.json.summary.engineers_involved }}</li></ul><h3>Customer Details:</h3><table border='1' cellpadding='8' style='border-collapse: collapse;'><tr style='background-color: #f0f0f0;'><th>Customer</th><th>Previous Contact</th><th>New Contact</th></tr>{{ $('Compile Transition Summary').item.json.transitions.map(t => '<tr><td>' + t.customer + '</td><td>' + t.from + '</td><td>' + t.to + '</td></tr>').join('') }}</table><h3>Next Steps:</h3><ul><li>Monitor customer interactions for first week</li><li>Check in with receiving engineers after 3 days</li><li>Conduct 30-day transition review</li><li>Address any customer concerns immediately</li></ul><p><strong>Important:</strong> Premium customers may require follow-up calls.</p>",
+        "options": {
+          "ccEmail": "={{ [...new Set($('Assign Customers to Engineers').all().map(a => a.json.new_engineer_email))].join(',') }}"
+        }
+      },
+      "id": "notify-team",
+      "name": "Notify IT Manager & Team",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [2650, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $('Compile Transition Summary').item.json }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2850, 600]
+    }
+  ],
+  "connections": {
+    "Webhook - Customer Transition Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Parameters": {
+      "main": [
+        [
+          {
+            "node": "Get Customer Assignments",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Available Engineers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Customer Assignments": {
+      "main": [
+        [
+          {
+            "node": "Assign Customers to Engineers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Available Engineers": {
+      "main": [
+        [
+          {
+            "node": "Assign Customers to Engineers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Customers to Engineers": {
+      "main": [
+        [
+          {
+            "node": "Process Each Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Each Customer": {
+      "main": [
+        [
+          {
+            "node": "Generate Transition Document",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compile Transition Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Transition Document": {
+      "main": [
+        [
+          {
+            "node": "Read Transition Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Transition Document": {
+      "main": [
+        [
+          {
+            "node": "Needs Personal Introduction?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Personal Introduction?": {
+      "main": [
+        [
+          {
+            "node": "Send Premium Customer Introduction",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Standard Customer Introduction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Premium Customer Introduction": {
+      "main": [
+        [
+          {
+            "node": "Update Customer Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Standard Customer Introduction": {
+      "main": [
+        [
+          {
+            "node": "Update Customer Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Customer Database": {
+      "main": [
+        [
+          {
+            "node": "Update Datto RMM Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Datto RMM Contact": {
+      "main": [
+        [
+          {
+            "node": "Log Transition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Transition": {
+      "main": [
+        [
+          {
+            "node": "Loop to Next Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop to Next Customer": {
+      "main": [
+        [
+          {
+            "node": "Process Each Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Transition Summary": {
+      "main": [
+        [
+          {
+            "node": "Update Off-boarding Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Off-boarding Ticket": {
+      "main": [
+        [
+          {
+            "node": "Notify IT Manager & Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify IT Manager & Team": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-11-25T15:30:00.000Z",
+  "versionId": "1"
+}

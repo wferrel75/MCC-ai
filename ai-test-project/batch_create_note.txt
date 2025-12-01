@@ -1,0 +1,17 @@
+Creating 13 customer profiles in batch:
+
+1. GIUD (Grand Island Utilities) - Municipal utility, limited web data
+2. Helget Inc - Healthcare/DME company, 50+ years experience
+3. HFC Transport - Trucking/freight, family-owned, 40 years
+4. Kissel Kohout ES - Government relations/lobbying, founded 1994
+5. Labenz & Associates - CPA firm, founded 1998
+6. Lester Electrical - Industrial battery chargers, 60+ years, manufacturing
+7. Maxum Staffing - Local staffing company, light industrial
+8. Omaha Electric - Electrical contractor, founded 1987
+9. Paramount CRES - Commercial real estate, Omaha-based
+10. Skrupa Law - Bankruptcy law firm, Nebraska
+11. Sys-Kool - Cooling towers, multi-state, 6 offices
+12. Garrett Group - Defense contractor, veteran-owned, intelligence/IT
+13. Vinton Ball - Industrial manufacturing (Molycop), Texas-based
+
+All profiles will follow the standard MSP customer profile template.

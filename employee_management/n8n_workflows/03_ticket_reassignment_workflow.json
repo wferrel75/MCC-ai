@@ -1,0 +1,534 @@
+{
+  "name": "MCC - Ticket Reassignment Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ticket-reassignment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Ticket Reassignment Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 400],
+      "webhookId": "ticket-reassignment"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "employee_email",
+              "value": "={{ $json.body.employee_email || $json.employee_email }}"
+            },
+            {
+              "name": "employee_name",
+              "value": "={{ $json.body.employee_name || $json.employee_name }}"
+            },
+            {
+              "name": "urgent",
+              "value": "={{ $json.body.urgent || $json.urgent || 'false' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-params",
+      "name": "Set Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "ticket",
+        "operation": "getAll",
+        "organizationId": "={{ $env.ZOHO_DESK_ORG_ID }}",
+        "filters": {
+          "assigneeEmail": "={{ $json.employee_email }}",
+          "status": "Open,In Progress,On Hold"
+        },
+        "returnAll": true
+      },
+      "id": "get-all-tickets",
+      "name": "Get All Open Tickets",
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [650, 400],
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "1",
+          "name": "Zoho Desk OAuth2"
+        }
+      },
+      "notes": "Query all open tickets assigned to departing employee"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "total_tickets",
+              "value": "={{ $json.length }}",
+              "type": "number"
+            },
+            {
+              "name": "high_priority",
+              "value": "={{ $json.filter(t => t.priority === 'High').length }}",
+              "type": "number"
+            },
+            {
+              "name": "medium_priority",
+              "value": "={{ $json.filter(t => t.priority === 'Medium').length }}",
+              "type": "number"
+            },
+            {
+              "name": "low_priority",
+              "value": "={{ $json.filter(t => t.priority === 'Low').length }}",
+              "type": "number"
+            },
+            {
+              "name": "tickets_by_customer",
+              "value": "={{ $json.reduce((acc, ticket) => {\n  const customer = ticket.contactName || ticket.accountName || 'Unknown';\n  acc[customer] = (acc[customer] || 0) + 1;\n  return acc;\n}, {}) }}",
+              "type": "object"
+            },
+            {
+              "name": "customers_with_multiple_tickets",
+              "value": "={{ Object.entries($json.reduce((acc, ticket) => {\n  const customer = ticket.contactName || ticket.accountName || 'Unknown';\n  acc[customer] = (acc[customer] || 0) + 1;\n  return acc;\n}, {})).filter(([_, count]) => count >= 3).map(([customer, count]) => ({customer, count})) }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "analyze-tickets",
+      "name": "Analyze Ticket Distribution",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [850, 400],
+      "notes": "Analyze ticket counts and identify patterns"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  user_id,\n  user_name,\n  user_email,\n  COUNT(*) as current_ticket_count,\n  specialties\nFROM technician_workload\nWHERE is_active = true\n  AND user_email != '{{ $('Set Parameters').item.json.employee_email }}'\nGROUP BY user_id, user_name, user_email, specialties\nORDER BY current_ticket_count ASC\nLIMIT 5",
+        "options": {}
+      },
+      "id": "get-team-workload",
+      "name": "Get Team Workload",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [850, 550],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "PostgreSQL - MCC Database"
+        }
+      },
+      "notes": "Query current team workload to suggest reassignments"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "={{ $json.urgent === 'true' ? 0 : 1 }}"
+      },
+      "id": "check-urgency",
+      "name": "Check Urgency",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [1050, 400],
+      "notes": "Route based on whether this is urgent (termination) or planned"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Urgent reassignment - prioritize speed\nconst tickets = $input.first().json;\nconst teamWorkload = $('Get Team Workload').all().map(item => item.json);\n\nconst reassignments = [];\nconst highPriorityTickets = tickets.filter(t => t.priority === 'High');\nconst otherTickets = tickets.filter(t => t.priority !== 'High');\n\n// Assign high priority tickets to least busy engineers\nlet engineerIndex = 0;\nhighPriorityTickets.forEach(ticket => {\n  reassignments.push({\n    ticket_id: ticket.id,\n    ticket_subject: ticket.subject,\n    customer: ticket.contactName || ticket.accountName,\n    priority: ticket.priority,\n    new_assignee_id: teamWorkload[engineerIndex % teamWorkload.length].user_id,\n    new_assignee_name: teamWorkload[engineerIndex % teamWorkload.length].user_name,\n    new_assignee_email: teamWorkload[engineerIndex % teamWorkload.length].user_email,\n    reassignment_note: `Reassigned due to urgent staff transition. Previous contact: ${$('Set Parameters').item.json.employee_name}`\n  });\n  engineerIndex++;\n});\n\n// Distribute other tickets evenly\notherTickets.forEach(ticket => {\n  reassignments.push({\n    ticket_id: ticket.id,\n    ticket_subject: ticket.subject,\n    customer: ticket.contactName || ticket.accountName,\n    priority: ticket.priority,\n    new_assignee_id: teamWorkload[engineerIndex % teamWorkload.length].user_id,\n    new_assignee_name: teamWorkload[engineerIndex % teamWorkload.length].user_name,\n    new_assignee_email: teamWorkload[engineerIndex % teamWorkload.length].user_email,\n    reassignment_note: `Reassigned due to urgent staff transition. Previous contact: ${$('Set Parameters').item.json.employee_name}`\n  });\n  engineerIndex++;\n});\n\nreturn reassignments.map(r => ({json: r}));"
+      },
+      "id": "urgent-reassign-logic",
+      "name": "Urgent Reassignment Logic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "notes": "Fast distribution for immediate departures"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Planned reassignment - optimize for expertise and customer relationships\nconst tickets = $input.first().json;\nconst teamWorkload = $('Get Team Workload').all().map(item => item.json);\n\nconst reassignments = [];\nconst ticketsByCustomer = {};\n\n// Group tickets by customer\ntickets.forEach(ticket => {\n  const customer = ticket.contactName || ticket.accountName || 'Unknown';\n  if (!ticketsByCustomer[customer]) {\n    ticketsByCustomer[customer] = [];\n  }\n  ticketsByCustomer[customer].push(ticket);\n});\n\n// Assign all tickets from same customer to same engineer when possible\nlet engineerIndex = 0;\nObject.entries(ticketsByCustomer).forEach(([customer, customerTickets]) => {\n  const assignedEngineer = teamWorkload[engineerIndex % teamWorkload.length];\n  \n  customerTickets.forEach(ticket => {\n    reassignments.push({\n      ticket_id: ticket.id,\n      ticket_subject: ticket.subject,\n      customer: customer,\n      priority: ticket.priority,\n      new_assignee_id: assignedEngineer.user_id,\n      new_assignee_name: assignedEngineer.user_name,\n      new_assignee_email: assignedEngineer.user_email,\n      reassignment_note: `Reassigned due to staff transition. Your new contact is ${assignedEngineer.user_name}. Previous contact: ${$('Set Parameters').item.json.employee_name}`,\n      notify_customer: customerTickets.length >= 3 // Notify if customer has 3+ tickets\n    });\n  });\n  \n  engineerIndex++;\n});\n\nreturn reassignments.map(r => ({json: r}));"
+      },
+      "id": "planned-reassign-logic",
+      "name": "Planned Reassignment Logic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 500],
+      "notes": "Intelligent distribution keeping customer tickets together"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-reassignments",
+      "name": "Split Into Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "ticket",
+        "operation": "update",
+        "organizationId": "={{ $env.ZOHO_DESK_ORG_ID }}",
+        "ticketId": "={{ $json.ticket_id }}",
+        "updateFields": {
+          "assigneeId": "={{ $json.new_assignee_id }}",
+          "comment": "={{ $json.reassignment_note }}"
+        }
+      },
+      "id": "reassign-ticket",
+      "name": "Reassign Ticket in Zoho",
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [1650, 400],
+      "notes": "Execute ticket reassignment in Zoho Desk"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.notify_customer }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "should-notify-customer",
+      "name": "Should Notify Customer?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1850, 400]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MCC_IT_EMAIL }}",
+        "toEmail": "={{ $json.customer_email }}",
+        "subject": "Update on Your MCC Support Tickets",
+        "emailFormat": "html",
+        "message": "<p>Dear Valued Customer,</p><p>We wanted to inform you of a change to your MCC support team. {{ $('Set Parameters').item.json.employee_name }} is transitioning, and <strong>{{ $json.new_assignee_name }}</strong> will be your new primary contact for your current support tickets.</p><p>{{ $json.new_assignee_name }} has been fully briefed on your cases and is ready to continue providing you with excellent service.</p><p><strong>Your new contact information:</strong><br>Name: {{ $json.new_assignee_name }}<br>Email: {{ $json.new_assignee_email }}<br>Phone: +1-402-702-5000</p><p>As always, our entire support team is available 24/7 to assist you.</p><p>Thank you for your continued partnership with Midwest Cloud Computing.</p><p>Best regards,<br>MCC Support Team</p>",
+        "options": {}
+      },
+      "id": "notify-customer",
+      "name": "Notify Customer",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [2050, 300],
+      "notes": "Send personal notification for customers with multiple tickets"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "total_reassigned",
+              "value": "={{ $runIndex + 1 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "track-progress",
+      "name": "Track Progress",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [2050, 500]
+    },
+    {
+      "parameters": {},
+      "id": "loop-back",
+      "name": "Loop Back",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2250, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "summary",
+              "value": "={{ {\n  employee: $('Set Parameters').item.json.employee_name,\n  total_tickets: $('Analyze Ticket Distribution').item.json.total_tickets,\n  high_priority: $('Analyze Ticket Distribution').item.json.high_priority,\n  medium_priority: $('Analyze Ticket Distribution').item.json.medium_priority,\n  low_priority: $('Analyze Ticket Distribution').item.json.low_priority,\n  reassignments_completed: $('Track Progress').last().json.total_reassigned,\n  customers_notified: $('Analyze Ticket Distribution').item.json.customers_with_multiple_tickets.length,\n  timestamp: $now.toISO()\n} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "compile-summary",
+      "name": "Compile Summary",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1450, 600]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "comment",
+        "operation": "create",
+        "organizationId": "={{ $env.ZOHO_DESK_ORG_ID }}",
+        "ticketId": "={{ $('Set Parameters').item.json.zoho_ticket_id }}",
+        "content": "<h3>Ticket Reassignment Completed</h3><p><strong>Employee:</strong> {{ $('Compile Summary').item.json.summary.employee }}<br><strong>Timestamp:</strong> {{ $('Compile Summary').item.json.summary.timestamp }}</p><h4>Tickets Reassigned:</h4><ul><li>Total: {{ $('Compile Summary').item.json.summary.total_tickets }}</li><li>High Priority: {{ $('Compile Summary').item.json.summary.high_priority }}</li><li>Medium Priority: {{ $('Compile Summary').item.json.summary.medium_priority }}</li><li>Low Priority: {{ $('Compile Summary').item.json.summary.low_priority }}</li></ul><h4>Customer Notifications:</h4><p>{{ $('Compile Summary').item.json.summary.customers_notified }} customers with multiple tickets have been notified personally.</p><p><em>All ticket reassignments completed successfully.</em></p>",
+        "additionalFields": {
+          "isPublic": false
+        }
+      },
+      "id": "update-offboarding-ticket",
+      "name": "Update Off-boarding Ticket",
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [1650, 600]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MCC_IT_EMAIL }}",
+        "toEmail": "={{ $env.MCC_IT_MANAGER_EMAIL }}",
+        "subject": "Ticket Reassignment Completed - {{ $('Set Parameters').item.json.employee_name }}",
+        "emailFormat": "html",
+        "message": "<h2>Ticket Reassignment Summary</h2><p><strong>Employee:</strong> {{ $('Compile Summary').item.json.summary.employee }}<br><strong>Completed:</strong> {{ $('Compile Summary').item.json.summary.timestamp }}</p><h3>Tickets Reassigned:</h3><ul><li>Total: {{ $('Compile Summary').item.json.summary.total_tickets }}</li><li>High Priority: {{ $('Compile Summary').item.json.summary.high_priority }}</li><li>Medium Priority: {{ $('Compile Summary').item.json.summary.medium_priority }}</li><li>Low Priority: {{ $('Compile Summary').item.json.summary.low_priority }}</li></ul><h3>Customer Impact:</h3><p>{{ $('Compile Summary').item.json.summary.customers_notified }} customers with 3+ tickets have been sent personal transition notifications.</p><p><strong>Next Steps:</strong></p><ul><li>Monitor reassigned tickets for first 48 hours</li><li>Check in with receiving engineers</li><li>Address any customer concerns promptly</li></ul>",
+        "options": {}
+      },
+      "id": "notify-manager",
+      "name": "Notify IT Manager",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1850, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $('Compile Summary').item.json.summary }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2050, 600]
+    }
+  ],
+  "connections": {
+    "Webhook - Ticket Reassignment Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Parameters": {
+      "main": [
+        [
+          {
+            "node": "Get All Open Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Open Tickets": {
+      "main": [
+        [
+          {
+            "node": "Analyze Ticket Distribution",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Team Workload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Ticket Distribution": {
+      "main": [
+        [
+          {
+            "node": "Check Urgency",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Urgency": {
+      "main": [
+        [
+          {
+            "node": "Urgent Reassignment Logic",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Planned Reassignment Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Urgent Reassignment Logic": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Planned Reassignment Logic": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Batches": {
+      "main": [
+        [
+          {
+            "node": "Reassign Ticket in Zoho",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compile Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reassign Ticket in Zoho": {
+      "main": [
+        [
+          {
+            "node": "Should Notify Customer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Notify Customer?": {
+      "main": [
+        [
+          {
+            "node": "Notify Customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Track Progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Customer": {
+      "main": [
+        [
+          {
+            "node": "Track Progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Track Progress": {
+      "main": [
+        [
+          {
+            "node": "Loop Back",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Back": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Summary": {
+      "main": [
+        [
+          {
+            "node": "Update Off-boarding Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Off-boarding Ticket": {
+      "main": [
+        [
+          {
+            "node": "Notify IT Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify IT Manager": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-11-25T15:30:00.000Z",
+  "versionId": "1"
+}

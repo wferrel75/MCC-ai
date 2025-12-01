@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  librespeed:
+    image: adolfintel/speedtest
+    container_name: librespeed
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      - MODE=standalone
+      # Optional: Customize settings
+      # - TITLE=LibreSpeed
+      # - TELEMETRY=true
+      # - ENABLE_ID_OBFUSCATION=false
+      # - REDACT_IP_ADDRESSES=false
+    # Optional: Persist telemetry data
+    # volumes:
+    #   - ./librespeed-data:/database

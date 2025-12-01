@@ -1,0 +1,27 @@
+# MCC Employee Off-boarding Automation - Python Dependencies
+
+# HTTP Requests
+requests>=2.31.0
+
+# Microsoft Graph API
+msal>=1.26.0
+msgraph-core>=0.2.2
+
+# Email functionality (optional, for automated notifications)
+python-dotenv>=1.0.0
+
+# Date/time handling
+python-dateutil>=2.8.2
+
+# YAML configuration (if using YAML instead of JSON)
+pyyaml>=6.0.1
+
+# Optional: Database support for tracking off-boarding history
+# Uncomment if implementing database features
+# sqlalchemy>=2.0.23
+# psycopg2-binary>=2.9.9  # PostgreSQL
+# pymysql>=1.1.0  # MySQL
+
+# Optional: Enhanced reporting
+# pandas>=2.1.4  # For data analysis and reporting
+# openpyxl>=3.1.2  # For Excel report generation

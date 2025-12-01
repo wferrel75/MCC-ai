@@ -1,0 +1,505 @@
+{
+  "name": "MCC - Access Revocation Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "access-revocation",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Access Revocation Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "access-revocation",
+      "notes": "Triggered by main off-boarding workflow or manually"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "employee_id",
+              "value": "={{ $json.body.employee_id || $json.employee_id }}"
+            },
+            {
+              "name": "employee_name",
+              "value": "={{ $json.body.employee_name || $json.employee_name }}"
+            },
+            {
+              "name": "employee_email",
+              "value": "={{ $json.body.employee_email || $json.employee_email }}"
+            },
+            {
+              "name": "immediate",
+              "value": "={{ $json.body.immediate || $json.immediate || 'false' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-params",
+      "name": "Set Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "user",
+        "operation": "get",
+        "userId": "={{ $json.employee_email }}"
+      },
+      "id": "get-user-entra",
+      "name": "Get User from Entra ID",
+      "type": "n8n-nodes-base.microsoftGraphApi",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "credentials": {
+        "microsoftGraphApiOAuth2": {
+          "id": "1",
+          "name": "Microsoft Graph API OAuth2"
+        }
+      },
+      "notes": "Retrieve user details from Azure AD / Entra ID"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "user",
+        "operation": "update",
+        "userId": "={{ $('Get User from Entra ID').item.json.id }}",
+        "updateFields": {
+          "accountEnabled": false
+        }
+      },
+      "id": "disable-user-entra",
+      "name": "Disable User in Entra ID",
+      "type": "n8n-nodes-base.microsoftGraphApi",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "notes": "Disable the user account in Azure AD"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "other",
+        "operation": "makeRequest",
+        "requestMethod": "POST",
+        "endpoint": "/users/{{ $('Get User from Entra ID').item.json.id }}/revokeSignInSessions"
+      },
+      "id": "revoke-sessions",
+      "name": "Revoke All Active Sessions",
+      "type": "n8n-nodes-base.microsoftGraphApi",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "notes": "Revoke all active authentication sessions"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "other",
+        "operation": "makeRequest",
+        "requestMethod": "GET",
+        "endpoint": "/users/{{ $('Get User from Entra ID').item.json.id }}/memberOf"
+      },
+      "id": "get-groups",
+      "name": "Get User Groups",
+      "type": "n8n-nodes-base.microsoftGraphApi",
+      "typeVersion": 1,
+      "position": [850, 450],
+      "notes": "Get all groups user is member of"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "other",
+        "operation": "makeRequest",
+        "requestMethod": "DELETE",
+        "endpoint": "/groups/{{ $json.id }}/members/{{ $('Get User from Entra ID').item.json.id }}/$ref"
+      },
+      "id": "remove-from-groups",
+      "name": "Remove from Groups",
+      "type": "n8n-nodes-base.microsoftGraphApi",
+      "typeVersion": 1,
+      "position": [1050, 450],
+      "notes": "Remove user from all security groups"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "other",
+        "operation": "makeRequest",
+        "requestMethod": "GET",
+        "endpoint": "/users/{{ $('Get User from Entra ID').item.json.id }}/licenseDetails"
+      },
+      "id": "get-licenses",
+      "name": "Get User Licenses",
+      "type": "n8n-nodes-base.microsoftGraphApi",
+      "typeVersion": 1,
+      "position": [850, 600],
+      "notes": "Get all M365 licenses assigned to user"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "user",
+        "operation": "update",
+        "userId": "={{ $('Get User from Entra ID').item.json.id }}",
+        "updateFields": {
+          "assignedLicenses": {
+            "removeLicenses": "={{ $('Get User Licenses').item.json.value.map(l => l.skuId) }}"
+          }
+        }
+      },
+      "id": "revoke-licenses",
+      "name": "Revoke M365 Licenses",
+      "type": "n8n-nodes-base.microsoftGraphApi",
+      "typeVersion": 1,
+      "position": [1050, 600],
+      "notes": "Remove all Microsoft 365 licenses"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "other",
+        "operation": "makeRequest",
+        "requestMethod": "PATCH",
+        "endpoint": "/users/{{ $('Get User from Entra ID').item.json.id }}/mailboxSettings/automaticRepliesSetting",
+        "body": "={{ {\n  \"status\": \"scheduled\",\n  \"scheduledStartDateTime\": {\n    \"dateTime\": $now.toISO(),\n    \"timeZone\": \"UTC\"\n  },\n  \"scheduledEndDateTime\": {\n    \"dateTime\": $now.plus({days: 90}).toISO(),\n    \"timeZone\": \"UTC\"\n  },\n  \"internalReplyMessage\": \"This employee is no longer with Midwest Cloud Computing. For assistance, please contact support@midcloudcomputing.com or call +1-402-702-5000.\",\n  \"externalReplyMessage\": \"This employee is no longer with Midwest Cloud Computing. For assistance, please contact support@midcloudcomputing.com or call +1-402-702-5000.\"\n} }}"
+      },
+      "id": "set-auto-reply",
+      "name": "Set Out of Office Auto-Reply",
+      "type": "n8n-nodes-base.microsoftGraphApi",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "notes": "Set automatic out-of-office reply for 90 days"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, email FROM technicians WHERE email = '{{ $('Set Parameters').item.json.employee_email }}' LIMIT 1",
+        "options": {}
+      },
+      "id": "check-datto-user",
+      "name": "Check Datto RMM User",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [650, 750],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "PostgreSQL - MCC Database"
+        }
+      },
+      "notes": "Check if user exists in Datto RMM (via local DB cache or API)"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.DATTO_RMM_API_URL }}/users/{{ $('Check Datto User').item.json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.DATTO_RMM_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "revoke-datto-access",
+      "name": "Revoke Datto RMM Access",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 750],
+      "notes": "Disable user account in Datto RMM"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "access_revocation_log",
+              "value": "={{ [\n  {\n    \"timestamp\": $now.toISO(),\n    \"action\": \"Entra ID Account Disabled\",\n    \"status\": \"completed\",\n    \"user_id\": $('Get User from Entra ID').item.json.id\n  },\n  {\n    \"timestamp\": $now.toISO(),\n    \"action\": \"Sessions Revoked\",\n    \"status\": \"completed\"\n  },\n  {\n    \"timestamp\": $now.toISO(),\n    \"action\": \"Groups Removed\",\n    \"status\": \"completed\",\n    \"count\": $('Get User Groups').item.json.value.length\n  },\n  {\n    \"timestamp\": $now.toISO(),\n    \"action\": \"Licenses Revoked\",\n    \"status\": \"completed\",\n    \"count\": $('Get User Licenses').item.json.value.length\n  },\n  {\n    \"timestamp\": $now.toISO(),\n    \"action\": \"Auto-Reply Set\",\n    \"status\": \"completed\"\n  },\n  {\n    \"timestamp\": $now.toISO(),\n    \"action\": \"Datto RMM Access Revoked\",\n    \"status\": $('Check Datto User').item.json.id ? 'completed' : 'not_applicable'\n  }\n] }}",
+              "type": "array"
+            },
+            {
+              "name": "manual_checklist",
+              "value": "={{ [\n  \"Zoho Desk - Disable account\",\n  \"Zoho Projects - Disable account\",\n  \"RocketCyber - Remove user\",\n  \"ConnectSecure - Remove user access\",\n  \"Keeper Security - Transfer vaults and revoke account\",\n  \"KnowBe4 - Remove from campaigns\",\n  \"Cisco Meraki - Remove user account\",\n  \"Ubiquiti UniFi - Remove admin credentials\",\n  \"Fortinet - Revoke VPN and admin access\",\n  \"Azure Portal - Remove from subscriptions and RBAC roles\",\n  \"AWS Console - Remove IAM user (if applicable)\",\n  \"Acronis - Remove user account\",\n  \"OneNote - Transfer notebook ownership\",\n  \"Customer VPNs - Audit and revoke all\",\n  \"Customer Admin Portals - Document and transfer\",\n  \"Customer Cloud Tenants - Remove guest access\"\n] }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "compile-results",
+      "name": "Compile Revocation Results",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1250, 600]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "comment",
+        "operation": "create",
+        "organizationId": "={{ $env.ZOHO_DESK_ORG_ID }}",
+        "ticketId": "={{ $('Set Parameters').item.json.zoho_ticket_id }}",
+        "content": "<h3>Automated Access Revocation Completed</h3><p><strong>Timestamp:</strong> {{ $now.toISO() }}</p><h4>Completed Automatically:</h4><ul>{{ $('Compile Results').item.json.access_revocation_log.map(item => '<li>' + item.action + ': ' + item.status + '</li>').join('') }}</ul><h4>Manual Steps Required:</h4><ul>{{ $('Compile Results').item.json.manual_checklist.map(item => '<li>[ ] ' + item + '</li>').join('') }}</ul><p><em>Please complete manual steps and update this ticket when done.</em></p>",
+        "additionalFields": {
+          "isPublic": false
+        }
+      },
+      "id": "update-zoho-ticket",
+      "name": "Update Zoho Desk Ticket",
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [1450, 450],
+      "notes": "Add comment to off-boarding ticket with results"
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MCC_IT_EMAIL }}",
+        "toEmail": "={{ $env.MCC_IT_MANAGER_EMAIL }}",
+        "subject": "Access Revocation Completed - {{ $('Set Parameters').item.json.employee_name }}",
+        "emailFormat": "html",
+        "message": "<h2>Access Revocation Status Update</h2><p><strong>Employee:</strong> {{ $('Set Parameters').item.json.employee_name }}<br><strong>Email:</strong> {{ $('Set Parameters').item.json.employee_email }}<br><strong>Timestamp:</strong> {{ $now.format('yyyy-MM-dd HH:mm:ss') }}</p><h3>Automated Steps Completed:</h3><ul>{{ $('Compile Results').item.json.access_revocation_log.map(item => '<li>' + item.action + ': <strong>' + item.status + '</strong></li>').join('') }}</ul><h3>Manual Steps Required:</h3><p>The following access points require manual revocation:</p><ul>{{ $('Compile Results').item.json.manual_checklist.map(item => '<li>[ ] ' + item + '</li>').join('') }}</ul><p><strong>Action Required:</strong> Please complete manual revocation steps within the next 2 hours.</p><p><em>Full details available in Zoho Desk ticket.</em></p>",
+        "options": {}
+      },
+      "id": "notify-completion",
+      "name": "Notify IT Manager - Completion",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"employee\": $('Set Parameters').item.json.employee_name,\n  \"automated_steps_completed\": $('Compile Results').item.json.access_revocation_log.length,\n  \"manual_steps_required\": $('Compile Results').item.json.manual_checklist.length,\n  \"details\": {\n    \"automated\": $('Compile Results').item.json.access_revocation_log,\n    \"manual\": $('Compile Results').item.json.manual_checklist\n  },\n  \"timestamp\": $now.toISO()\n} }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1650, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": false,\n  \"error\": $json.message || \"Unknown error occurred\",\n  \"employee\": $('Set Parameters').item.json.employee_name,\n  \"timestamp\": $now.toISO()\n} }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "respond-error",
+      "name": "Respond - Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 150],
+      "notes": "Handle errors in access revocation"
+    }
+  ],
+  "connections": {
+    "Webhook - Access Revocation Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Parameters": {
+      "main": [
+        [
+          {
+            "node": "Get User from Entra ID",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Datto RMM User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User from Entra ID": {
+      "main": [
+        [
+          {
+            "node": "Disable User in Entra ID",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get User Groups",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get User Licenses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disable User in Entra ID": {
+      "main": [
+        [
+          {
+            "node": "Revoke All Active Sessions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revoke All Active Sessions": {
+      "main": [
+        [
+          {
+            "node": "Set Out of Office Auto-Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Groups": {
+      "main": [
+        [
+          {
+            "node": "Remove from Groups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove from Groups": {
+      "main": [
+        [
+          {
+            "node": "Compile Revocation Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Licenses": {
+      "main": [
+        [
+          {
+            "node": "Revoke M365 Licenses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revoke M365 Licenses": {
+      "main": [
+        [
+          {
+            "node": "Compile Revocation Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Out of Office Auto-Reply": {
+      "main": [
+        [
+          {
+            "node": "Compile Revocation Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Datto RMM User": {
+      "main": [
+        [
+          {
+            "node": "Revoke Datto RMM Access",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revoke Datto RMM Access": {
+      "main": [
+        [
+          {
+            "node": "Compile Revocation Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Revocation Results": {
+      "main": [
+        [
+          {
+            "node": "Update Zoho Desk Ticket",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify IT Manager - Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Zoho Desk Ticket": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify IT Manager - Completion": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "={{ $env.ERROR_WORKFLOW_ID }}"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-11-25T15:30:00.000Z",
+  "versionId": "1"
+}
