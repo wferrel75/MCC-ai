@@ -9,7 +9,7 @@
 **Website:** http://www.crowellhome.com/
 **Main Phone:** (402) 426-2177
 **Profile Created Date:**
-**Last Updated:**
+**Last Updated:** 2025-12-03 (Infrastructure documentation and relocation project scoping)
 **Account Manager:**
 **Primary Technical Contact:**
 **Industry/Vertical:** Healthcare - Continuing Care Retirement Community (CCRC) / Skilled Nursing Facility
@@ -70,7 +70,7 @@
 - Maintain facility occupancy and financial sustainability
 
 **Technology Initiatives (Next 12 Months):**
-- TBD - To be discussed with customer
+- 
 -
 -
 
@@ -129,11 +129,17 @@ sites:
     phone: "(402) 426-2177"
     user_count: TBD (estimated 50-100 staff)
     resident_count: TBD (up to 194 capacity: 88 skilled + 18 assisted + 8 independent + memory care)
-    internet_provider: ""
-    bandwidth_down: ""
-    bandwidth_up: ""
+    internet_provider: "Great Plains"
+    bandwidth_down: "TBD"
+    bandwidth_up: "TBD"
     site_type: [X] Primary [ ] Branch [ ] Remote Office [ ] Data Center
+    building_layout:
+      - "First Level: Resident rooms (101-161), main dining, kitchen, offices, lounges"
+      - "Second Level: Resident rooms (200-260), chapel, assisted living, IT room (current location)"
+      - "Lower Level: Activities, therapy, laundry, mechanical, storage"
+    it_infrastructure_location: "Second Level - current IT/server room location"
     notes: "Single-site long-term care facility, 24/7 operations, founded 1905"
+    documentation: "Floor plans available: Crowell/Crowell_Building_Floor_Plan.pdf"
 ```
 
 ### Inter-Site Connectivity
@@ -148,28 +154,48 @@ sites:
 
 ### On-Premises Network
 **Firewall/Security:**
-- **Vendor/Model:** TBD
+- **Vendor/Model:** Fortinet FortiGate 80F
 - **Firmware Version:** TBD
-- **Management:** [ ] Cloud-Managed [ ] On-Prem [ ] Hybrid
-- **Features in Use:** [ ] VPN [ ] Content Filtering [ ] IPS/IDS [ ] Application Control
-- **HIPAA Considerations:** Firewall must support HIPAA security requirements
+- **Management:** [ ] Cloud-Managed [X] On-Prem [ ] Hybrid
+- **Features in Use:** [ ] VPN [ ] Content Filtering [ ] IPS/IDS [ ] Application Control (TBD - needs assessment)
+- **Location:** Second level IT room (wall-mounted rack)
+- **HIPAA Considerations:** FortiGate supports HIPAA security requirements; configuration audit recommended
 
 **Network Equipment:**
-- **Switch Vendor/Model:** TBD
-- **Wireless AP Vendor/Model:** TBD
-- **Network Management:** [ ] Ubiquiti (UniFi) [ ] Cisco Meraki [ ] Aruba [ ] Other: ___
+- **Switch Vendor/Model:**
+  - FortiSwitch 124E (24-port managed switch with uplinks)
+  - HP 1910-24-POE (24-port PoE switch, IP: 172.163.0.249)
+  - Ubiquiti USW Pro 24 port (managed by Great Plains - coordination required)
+- **Patch Panels:**
+  - Diode Technologies patch panel (labeled with AP 1-8 ports, WAN ports)
+  - Additional patch panel (managed by Great Plains with Ubiquiti switch)
+  - Great Plains Communications branded equipment
+  - ICC branded equipment
+- **Rack Configuration:**
+  - Current: 2 wall-mounted racks/shelves on second level IT room
+  - Opportunity to consolidate to 1 rack during relocation
+  - Current setup uses wall-mounted shelving with equipment stacked
+- **IP Addressing Observed:** 172.163.0.x subnet
+- **Wireless AP Vendor/Model:** TBD (likely connected to patch panel AP ports)
+- **Network Management:** [X] Ubiquiti (UniFi) - Partial [ ] Cisco Meraki [ ] Aruba [X] Other: Fortinet
 - **Network Coverage:** Entire facility (nursing units, common areas, offices, memory care unit)
+- **Cable Management:** Extensive blue Cat5e/Cat6 cabling, minimal cable management currently
+- **Equipment Photos:** Available in Crowell/ directory (signal-2025-12-03-102320*.jpeg)
 
 **Network Services:**
 - **DHCP Server:** [ ] Firewall [ ] Windows Server [ ] Router [ ] Other: ___
 - **DNS Services:** [ ] Internal DNS Server [ ] Cloud DNS [ ] ISP DNS
-- **IP Addressing Scheme:** TBD
-- **VLANs Configured:** [ ] Yes [ ] No
+- **IP Addressing Scheme:** 172.163.0.0/24 (observed subnet)
+  - HP Switch: 172.163.0.249
+  - Additional devices in 172.163.0.x range
+- **VLANs Configured:** [ ] Yes [ ] No (needs assessment)
   - VLAN Recommendations: Separate VLANs for clinical (EHR), administrative, guest WiFi, IoT/monitoring devices, security cameras
+  - Current Configuration: TBD (audit needed during infrastructure assessment)
 
 **Critical Network Devices:**
 - Nurse call systems
 - Emergency call buttons
+- Overhead paging system (Extension 820)
 - Security cameras (common areas, entrances, parking)
 - Door access control systems
 - Medication carts (if wireless/networked)
@@ -177,6 +203,7 @@ sites:
 - Fire alarm and safety systems
 
 ### Internet & WAN
+- **Primary ISP:** Great Plains
 - **Primary Internet Speed:** TBD (recommend minimum 100 Mbps for EHR and operations)
 - **Backup Internet:** [ ] Yes [ ] No (highly recommended for 24/7 healthcare)
 - **Public IP Addresses:** [ ] Static [ ] Dynamic [ ] Number of IPs: ___
@@ -232,13 +259,17 @@ Teams Phone Standard                       |       | Main number, departments
 servers:
   - role: "TBD - File Server or EHR Server"
     os: ""
+    form_factor: "Tower"
     virtualization: [ ] Physical [ ] Hyper-V [ ] VMware [ ] Azure
-    location: "On-site server room or IT closet"
+    location: "On-site server room (scheduled for relocation)"
 
   - role: "TBD - Backup/Domain Controller"
     os: ""
+    form_factor: "Tower"
     virtualization: [ ] Physical [ ] Hyper-V [ ] VMware [ ] Azure
-    location: ""
+    location: "On-site server room (scheduled for relocation)"
+
+  - note: "Multiple tower servers present - exact count and roles TBD during infrastructure assessment"
 ```
 
 **Active Directory:**
@@ -371,16 +402,18 @@ Nurse Call System                       | TBD         | [On-Prem]       | All   
 ## Telephony & Communication
 
 ### Current Phone System
-- **Phone System Type:** [ ] On-Prem PBX [ ] Cloud PBX [ ] Teams Phone [ ] Other: ___
-- **Vendor/Model:** TBD
+- **Phone System Type:** [ ] On-Prem PBX [ ] Cloud PBX [ ] Teams Phone [X] Other: Great Plains Hosted
+- **Vendor/Model:** Great Plains (provider) / Yealink Phones (hardware)
 - **Number of Lines/Extensions:** TBD (main line, nursing stations, administration, memory care unit)
 - **Auto Attendant/Call Queue:** [X] Yes [ ] No (likely for main number)
 - **Conference Room Phones:** TBD
 - **Analog Lines (Fax/Alarm):** TBD (possibly for fax, fire alarm, elevator phone)
 - **24/7 Requirements:** Main line must be answered 24/7 (admissions, family calls, emergencies)
+- **Overhead Paging System:** Extension 820 (facility-wide PA system)
 
 **Key Phone Numbers/Extensions:**
 - Main Reception: (402) 426-2177
+- Extension 820: Overhead Paging System (facility-wide PA)
 - Nursing stations (multiple units)
 - Admissions office
 - Administrator
@@ -461,8 +494,31 @@ Nurse Call System                       | TBD         | [On-Prem]       | All   
 
 ### Timeline & Priorities
 **Immediate Needs (0-30 days):**
-- TBD
--
+- Infrastructure room relocation - review and quote requested
+  - **Current Location:** Second level IT room (see floor plan page 2)
+  - **Destination:** Opposite side of same wall (adjacent room)
+  - **Rack Configuration:** 2 wall-mounted shelves/racks (opportunity to consolidate to 1 proper rack)
+  - **Network Equipment to Relocate:**
+    - Fortinet FortiGate 80F firewall
+    - Fortinet FortiSwitch 124E (24-port managed switch)
+    - HP 1910-24-POE switch (IP: 172.163.0.249)
+    - Ubiquiti USW Pro 24 port (Great Plains managed - coordination required)
+  - **Patch Panels to Relocate:**
+    - Diode Technologies patch panel (AP 1-8, WAN ports)
+    - Great Plains patch panel (with Ubiquiti switch - coordination required)
+    - ICC branded equipment
+  - **Additional Equipment:**
+    - Tower servers (quantity and models TBD)
+    - Work desk and monitor currently in IT room
+  - **Cabling Assessment Needed:**
+    - Extensive blue Cat5e/Cat6 cabling throughout facility
+    - Cable length requirements for new location
+    - Opportunity for improved cable management
+    - Verification of AP and endpoint connectivity after move
+  - **Coordination Required:**
+    - Great Plains Communications (Ubiquiti switch, patch panel, phone system)
+    - Diode Technologies (if applicable for patch panel)
+  - **Documentation:** Current state photos available in Crowell/ directory
 
 **Short-Term Projects (1-6 months):**
 - TBD
@@ -481,12 +537,17 @@ Nurse Call System                       | TBD         | [On-Prem]       | All   
 
 ### Current IT Vendors
 ```
-Vendor Name     | Service Provided           | Contract Term | Satisfaction | BAA Signed?
-----------------|---------------------------|---------------|--------------|-------------
-                | EHR System                |               | [1-5]        | [ ]
-                | Backup/DR                 |               | [1-5]        | [ ]
-                | IT Support/MSP            |               | [1-5]        | [ ]
-                | Phone System              |               | [1-5]        | [ ]
+Vendor Name           | Service Provided           | Contract Term | Satisfaction | BAA Signed?
+---------------------|---------------------------|---------------|--------------|-------------
+Great Plains         | Internet Service Provider  |               | [1-5]        | [ ]
+Communications       | Phone System (Yealink)     |               | [1-5]        | [ ]
+                     | Network Management         |               | [1-5]        | [ ]
+                     | (Ubiquiti switch & patch)  |               |              |
+Diode Technologies   | Structured Cabling/Patch   |               | [1-5]        | [ ]
+(402.793.5124)       | Panel Infrastructure       |               |              |
+                     | EHR System                |               | [1-5]        | [ ]
+                     | Backup/DR                 |               | [1-5]        | [ ]
+                     | IT Support/MSP            |               | [1-5]        | [ ]
 ```
 
 **Note:** All vendors handling PHI must have signed Business Associate Agreements (BAA)
@@ -587,6 +648,31 @@ Potential Areas (to be confirmed with customer):
 - Document management system for policies/procedures
 - Quality assurance and reporting automation
 - Infection control tracking and reporting
+- Proper rack infrastructure and cable management (during relocation project)
+- Network documentation and IP address management (IPAM)
+- FortiGate firewall configuration audit and optimization
+```
+
+### Documentation & Resources
+**Available Documentation:**
+- Floor Plans: `Crowell/Crowell_Building_Floor_Plan.pdf`
+  - Page 1: First Level Floorplan (resident rooms 101-161, main dining, offices)
+  - Page 2: Second Level Floorplan (resident rooms 200-260, current IT room location marked)
+  - Page 3: Lower Level Floorplan (activities, therapy, mechanical, storage)
+
+**Current Infrastructure Photos:**
+- `Crowell/signal-2025-12-03-102320.jpeg` - Wall-mounted rack with Diode Technologies patch panel
+- `Crowell/signal-2025-12-03-102320_002.jpeg` - Full equipment stack (HP switch, FortiGate, FortiSwitch)
+- `Crowell/signal-2025-12-03-102320_003.jpeg` - Close-up of FortiGate 80F and FortiSwitch 124E
+- `Crowell/signal-2025-12-03-102320_004.jpeg` - Equipment front panel detail with port status
+- `Crowell/signal-2025-12-03-102320_005.jpeg` - Overall workspace view with cabling
+
+**Infrastructure Assessment Notes:**
+- Current rack setup uses wall-mounted shelving (not a proper enclosed rack)
+- Cable management needs improvement (extensive unmanaged blue cables)
+- Equipment is operational but could benefit from proper rack organization
+- IP addressing uses 172.163.0.x subnet
+- Multiple vendors involved requiring coordination for move project
 ```
 
 ---
@@ -594,13 +680,19 @@ Potential Areas (to be confirmed with customer):
 ## Profile Completion Checklist
 - [X] Basic customer information completed (from web sources)
 - [ ] User counts and distribution documented
-- [ ] Office/facility details documented with network details
+- [X] Office/facility details documented with network details
+- [X] Current network infrastructure documented (firewall, switches, patch panels)
+- [X] Floor plans and building layout documented
+- [X] Infrastructure photos captured and cataloged
+- [X] IP addressing scheme documented (172.163.0.x)
+- [X] Vendor relationships identified (Great Plains, Diode Technologies)
+- [X] Infrastructure relocation project scoped
 - [ ] Current Microsoft 365 licensing documented
 - [ ] Security posture assessed
 - [ ] Backup strategy documented
 - [ ] Pain points and objectives identified
 - [ ] Budget and timeline discussed
-- [ ] HIPAA compliance requirements documented
+- [X] HIPAA compliance requirements documented
 - [ ] EHR and clinical systems identified
 - [ ] Profile reviewed with customer
 - [ ] Profile reviewed with technical team
