@@ -9,9 +9,10 @@
 **Website:** http://www.crowellhome.com/
 **Main Phone:** (402) 426-2177
 **Profile Created Date:**
-**Last Updated:** 2025-12-03 (Infrastructure documentation and relocation project scoping)
+**Last Updated:** 2025-12-05 (Added CEO and Primary Technical Contact information)
 **Account Manager:**
-**Primary Technical Contact:**
+**Primary Technical Contact:** Kylea Punke - Business Office Manager (kpunke@crowellhome.com)
+**CEO:** Jaclyn Svendgard (jmsvendgard4@gmail.com)
 **Industry/Vertical:** Healthcare - Continuing Care Retirement Community (CCRC) / Skilled Nursing Facility
 
 ---
@@ -257,27 +258,32 @@ Teams Phone Standard                       |       | Main number, departments
 **Servers:**
 ```yaml
 servers:
-  - role: "TBD - File Server or EHR Server"
-    os: ""
+  - role: "Domain Controller (CRITICAL - END OF LIFE)"
+    os: "Windows Server 2008 R2"
     form_factor: "Tower"
     virtualization: [ ] Physical [ ] Hyper-V [ ] VMware [ ] Azure
     location: "On-site server room (scheduled for relocation)"
+    status: "END OF SUPPORT - Azure AD migration required"
+    migration_priority: "HIGH - Security risk due to unsupported OS"
 
-  - role: "TBD - Backup/Domain Controller"
-    os: ""
+  - role: "TBD - File Server or EHR Server"
+    os: "TBD"
     form_factor: "Tower"
     virtualization: [ ] Physical [ ] Hyper-V [ ] VMware [ ] Azure
     location: "On-site server room (scheduled for relocation)"
 
   - note: "Multiple tower servers present - exact count and roles TBD during infrastructure assessment"
+  - note: "Server 2008 R2 is out of mainstream and extended support (EOL: January 14, 2020)"
 ```
 
 **Active Directory:**
 - **Domain Name:** TBD
-- **Forest Functional Level:** TBD
-- **Azure AD Connect:** [ ] Yes [ ] No [ ] Cloud Sync
-- **Hybrid Configuration:** [ ] Yes [ ] No
+- **Server OS:** Windows Server 2008 R2 (END OF LIFE - migration required)
+- **Forest Functional Level:** TBD (likely Server 2008 R2)
+- **Azure AD Connect:** [ ] Yes [X] No [ ] Cloud Sync
+- **Hybrid Configuration:** [ ] Yes [X] No
 - **Number of Domain Controllers:** TBD (recommend at least 1 for single-site)
+- **Migration Status:** On-premises only, Azure AD migration planned
 
 **File Storage:**
 - **File Server Location:** [ ] On-Prem [ ] Cloud [ ] Hybrid
@@ -520,9 +526,53 @@ Nurse Call System                       | TBD         | [On-Prem]       | All   
     - Diode Technologies (if applicable for patch panel)
   - **Documentation:** Current state photos available in Crowell/ directory
 
+- **User Workstation Tasks:**
+  - Remove Dropbox from Nancy's computer (logs in as Kara)
+  - **PC Replacements:**
+    - Prudy - PC replacement needed
+    - Nancy - PC replacement | Computer name: Shaurice, Username: Kara
+    - Sydney - PC replacement | Computer name: PC02, Username: Curtis
+  - **Network Connectivity Issues:**
+    - 2nd floor nursing station computers (including computer named Erica) - no internet connectivity overnight, connectivity restored by 8:00 AM
+    - **ACTION REQUIRED:** Follow up to confirm nursing station PCs are working properly and investigate cause of overnight outage
+
 **Short-Term Projects (1-6 months):**
-- TBD
--
+- **Active Directory Migration to Azure AD (CRITICAL - End of Life System):**
+  - Current Environment: Windows Server 2008 R2 Active Directory (END OF SUPPORT)
+  - Migration Path: On-premises AD to Azure AD (Entra ID)
+  - **Pre-Migration Assessment:**
+    - Document current AD structure, OUs, GPOs, and user/computer objects
+    - Identify all applications and services dependent on on-prem AD
+    - Assess compatibility of current workstations and applications with Azure AD
+    - Review current authentication methods and security policies
+  - **Migration Planning:**
+    - Design Azure AD tenant structure and naming conventions
+    - Plan for Microsoft 365 license requirements (Azure AD Premium P1/P2)
+    - Determine hybrid vs. cloud-only approach based on remaining on-prem dependencies
+    - Plan for Intune device management integration
+    - Design conditional access policies for HIPAA compliance
+  - **Implementation Steps:**
+    - Establish Azure AD tenant and configure security baseline
+    - Set up Azure AD Connect (if hybrid approach) or direct migration
+    - Migrate user accounts and groups
+    - Configure MFA for all users (HIPAA requirement)
+    - Migrate workstations to Azure AD join
+    - Implement Intune for device management
+    - Decommission Server 2008 R2 domain controller(s)
+  - **Post-Migration:**
+    - Validate user access and authentication
+    - Update documentation and IT procedures
+    - Train staff on new authentication experience
+    - Monitor for any access or compatibility issues
+
+- **Policy Files Migration to SharePoint:**
+  - Consolidate Jaclyn's Policy files to SharePoint
+  - Assess current file structure and organization
+  - Identify who needs access to policy documentation
+  - Configure appropriate SharePoint permissions and access controls
+  - Ensure HIPAA compliance for any PHI-related policies
+  - Train staff on accessing policies from SharePoint
+  - Establish version control and approval workflow for policy updates
 
 **Long-Term Goals (6-12+ months):**
 - TBD
@@ -631,34 +681,51 @@ To be documented after initial assessment:
 ### Opportunities for Improvement
 ```
 Potential Areas (to be confirmed with customer):
+- **CRITICAL: Windows Server 2008 R2 Domain Controller migration to Azure AD**
+  - Server 2008 R2 is END OF LIFE (since January 2020)
+  - No security patches or support available
+  - Significant HIPAA compliance and security risk
+  - Azure AD migration eliminates on-prem DC dependency
 - HIPAA compliance assessment and remediation
+- MFA implementation for all users accessing PHI (part of Azure AD migration)
 - Modern EHR system migration (if using legacy system)
 - Cloud-based backup and disaster recovery
 - Microsoft 365 implementation for staff communication
 - Mobile point-of-care documentation for CNAs
 - Family communication portal / resident portal
 - Network infrastructure upgrade (separate VLANs for clinical/administrative)
-- MFA implementation for all users accessing PHI
 - Security awareness training (phishing, ransomware)
 - Medication administration system (eMAR) optimization
 - Staff scheduling and communication improvements
 - Integration between EHR, billing, and pharmacy systems
 - Telehealth capabilities for physician consultations
 - Remote monitoring and IoT for resident safety
-- Document management system for policies/procedures
+- Document management system for policies/procedures (Jaclyn's policy files to SharePoint)
 - Quality assurance and reporting automation
 - Infection control tracking and reporting
 - Proper rack infrastructure and cable management (during relocation project)
 - Network documentation and IP address management (IPAM)
 - FortiGate firewall configuration audit and optimization
+- Intune device management implementation (part of Azure AD migration)
 ```
 
 ### Documentation & Resources
 **Available Documentation:**
-- Floor Plans: `Crowell/Crowell_Building_Floor_Plan.pdf`
+- Floor Plans (PDF): `Crowell/Crowell_Building_Floor_Plan.pdf`
   - Page 1: First Level Floorplan (resident rooms 101-161, main dining, offices)
   - Page 2: Second Level Floorplan (resident rooms 200-260, current IT room location marked)
   - Page 3: Lower Level Floorplan (activities, therapy, mechanical, storage)
+- Floor Plans (Draw.io):
+  - **Basic Structure:** `Crowell/Crowell_Floor_Plans.drawio`
+    - Simple overview with main areas
+    - IT infrastructure location highlighted on Second Level
+    - Color-coded areas by function
+  - **Detailed Room-by-Room:** `Crowell/Crowell_Floor_Plans_Detailed.drawio` (RECOMMENDED)
+    - All individual room numbers included
+    - IT infrastructure location prominently highlighted with equipment list
+    - Relocation project visualization with directional arrow
+    - Three pages (one per level)
+    - Comprehensive legends on each page
 
 **Current Infrastructure Photos:**
 - `Crowell/signal-2025-12-03-102320.jpeg` - Wall-mounted rack with Diode Technologies patch panel
@@ -687,10 +754,12 @@ Potential Areas (to be confirmed with customer):
 - [X] IP addressing scheme documented (172.163.0.x)
 - [X] Vendor relationships identified (Great Plains, Diode Technologies)
 - [X] Infrastructure relocation project scoped
+- [X] On-premises Active Directory documented (Server 2008 R2 - EOL)
+- [X] Azure AD migration project planned (CRITICAL PRIORITY)
 - [ ] Current Microsoft 365 licensing documented
-- [ ] Security posture assessed
+- [ ] Security posture assessed (MFA needs assessment)
 - [ ] Backup strategy documented
-- [ ] Pain points and objectives identified
+- [X] Pain points and objectives identified (Server EOL, policy files)
 - [ ] Budget and timeline discussed
 - [X] HIPAA compliance requirements documented
 - [ ] EHR and clinical systems identified

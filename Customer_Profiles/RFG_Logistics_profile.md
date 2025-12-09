@@ -5,12 +5,12 @@
 
 ## Customer Identification
 
-**Customer Name:**
-**Profile Created Date:**
-**Last Updated:**
+**Customer Name:** RFG Logistics
+**Profile Created Date:** 2025-12-04
+**Last Updated:** 2025-12-04
 **Account Manager:**
 **Primary Technical Contact:**
-**Industry/Vertical:**
+**Industry/Vertical:** Transportation & Logistics (3PL/Freight Brokerage)
 
 ---
 
@@ -20,15 +20,16 @@
 - **Number of Employees:**
 - **Number of IT Staff:**
 - **Annual Revenue Range:**
-- **Business Type:** [ ] B2B [ ] B2C [ ] B2B2C [ ] Non-Profit [ ] Government
+- **Business Type:** [X] B2B [ ] B2C [ ] B2B2C [ ] Non-Profit [ ] Government
 - **Critical Business Hours:**
-- **Time Zone(s):**
+- **Time Zone(s):** Central Time (CST/CDT)
 
 ### Business Objectives
 **Primary Business Goals:**
--
--
--
+- Freight brokerage and logistics coordination
+- Building partnerships with independent trucking companies and owner-operators
+- Providing reliable logistics services for agricultural freight
+- Environmental sustainability (EPA SmartWay certified)
 
 **Technology Initiatives (Next 12 Months):**
 -
@@ -36,8 +37,9 @@
 -
 
 **Pain Points/Challenges:**
--
--
+- Managing carrier relationships and communications
+- Coordinating logistics across agricultural supply chains
+- Maintaining FMCSA compliance and certifications
 -
 
 ---
@@ -76,21 +78,21 @@ Total Users: ___
 ### Site Details
 ```yaml
 sites:
-  - name: "Headquarters"
-    address: ""
+  - name: "Headquarters - Omaha"
+    address: "5820 S 142nd Street, Omaha, NE 68137"
     user_count:
     internet_provider: ""
     bandwidth_down: ""
     bandwidth_up: ""
-    site_type: [ ] Primary [ ] Branch [ ] Remote Office [ ] Data Center
+    site_type: [X] Primary [ ] Branch [ ] Remote Office [ ] Data Center
 
-  - name: ""
-    address: ""
+  - name: "Carroll Office"
+    address: "1917 N Highway 71, Suite 3, Carroll, IA 51401"
     user_count:
     internet_provider: ""
     bandwidth_down: ""
     bandwidth_up: ""
-    site_type: [ ] Primary [ ] Branch [ ] Remote Office [ ] Data Center
+    site_type: [ ] Primary [X] Branch [ ] Remote Office [ ] Data Center
 ```
 
 ### Inter-Site Connectivity
@@ -139,7 +141,7 @@ sites:
 
 ### Microsoft 365 / Office 365
 - **M365 Tenant Domain(s):**
-- **Primary Domain:**
+- **Primary Domain:** rfglogistics.com
 - **Additional Domains:**
 - **Tenant Type:** [ ] Commercial [ ] GCC [ ] GCC High [ ] DoD
 
@@ -219,8 +221,9 @@ Application Name    | Vendor      | Hosting         | Users | Cloud-Ready?
 ```
 
 **Critical Dependencies:**
--
--
+- Logistics/freight management system (TMS)
+- Carrier communication platforms
+- Quick Pay Program processing
 
 ---
 
@@ -249,7 +252,7 @@ Application Name    | Vendor      | Hosting         | Users | Cloud-Ready?
 - **Key Policies:**
 
 ### Compliance Requirements
-- **Industry Regulations:** [ ] HIPAA [ ] PCI-DSS [ ] SOX [ ] GDPR [ ] CMMC [ ] None [ ] Other: ___
+- **Industry Regulations:** [X] FMCSA [ ] HIPAA [ ] PCI-DSS [ ] SOX [ ] GDPR [ ] CMMC [ ] Other: EPA SmartWay, Organic Certification
 - **Data Retention Requirements:**
 - **eDiscovery Needs:** [ ] Yes [ ] No
 - **Data Loss Prevention (DLP):** [ ] Required [ ] Nice-to-have [ ] Not needed
@@ -271,6 +274,10 @@ Application Name    | Vendor      | Hosting         | Users | Cloud-Ready?
 - **Auto Attendant/Call Queue:** [ ] Yes [ ] No
 - **Conference Room Phones:**
 - **Analog Lines (Fax/Alarm):**
+
+**Contact Numbers:**
+- Main: (402) 933-5595
+- Additional: (402) 932-9707, (402) 709-7436
 
 ### Teams Voice
 - **Teams Phone Deployment:** [ ] Yes [ ] No [ ] Planned
@@ -364,46 +371,47 @@ Vendor Name     | Service Provided           | Contract Term | Satisfaction
 
 ### Special Considerations
 ```
-[Free-form section for any unique requirements, constraints, or context]
-
-
-
-
-
+- Company uses Squarespace for website platform
+- Strong focus on environmental sustainability (EPA SmartWay certified)
+- Carrier-focused business model requiring robust communication systems
+- Agricultural freight specialization may have seasonal variations
+- Multiple office locations requiring coordination
+- Active social media presence on Instagram, Facebook, LinkedIn, Twitter (@rfglogisticsinc)
+- Email: info@rfglogistics.com
 ```
 
 ### Customer Strengths
 ```
-[What is this customer doing well from an IT perspective?]
-
-
-
-
+- EPA SmartWay certification demonstrates commitment to environmental standards
+- Multiple certifications (Organic, FMCSA compliance)
+- Established carrier partnership programs (Quick Pay Program)
+- Multi-location presence (Nebraska and Iowa)
+- Strong industry focus in agricultural logistics
 ```
 
 ### Opportunities for Improvement
 ```
-[Key areas where customer could benefit from improvement]
-
-
-
-
+- Potential to enhance carrier communication platforms with modern collaboration tools
+- Opportunity to implement logistics tracking and management systems
+- Mobile workforce solutions for coordinating with trucking partners
+- Data analytics for route optimization and efficiency
+- Integration between logistics platforms and business systems
 ```
 
 ---
 
 ## Profile Completion Checklist
-- [ ] Basic customer information completed
+- [X] Basic customer information completed
 - [ ] User counts and distribution documented
-- [ ] All office locations documented with network details
+- [X] All office locations documented with network details
 - [ ] Current Microsoft 365 licensing documented
 - [ ] Security posture assessed
 - [ ] Backup strategy documented
-- [ ] Pain points and objectives identified
+- [X] Pain points and objectives identified
 - [ ] Budget and timeline discussed
 - [ ] Profile reviewed with customer
 - [ ] Profile reviewed with technical team
 
 **Profile Completed By:** ___________________
-**Date:** ___________________
+**Date:** 2025-12-04
 **Next Review Date:** ___________________

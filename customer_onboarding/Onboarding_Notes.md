@@ -105,6 +105,7 @@
 - Schedule quarantine notification emails
 - Enable any known whitelisting rules/blocks
 - Test Mailflow
+- **Add customer email domains to MX monitoring** *(Easily Automated)*
 
 ### Step 5: Credentials Transfer
 

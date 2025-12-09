@@ -1,0 +1,401 @@
+{
+    "OSVersion": "Microsoft Windows Server 2008 R2 Standard ",
+    "ServerName": "SERVER-FS1",
+    "ActiveDirectory": [
+        "[INFO][AD] Checking Active Directory configuration...",
+        "[INFO][AD] Domain: crowell.local",
+        "[INFO][AD] Users: 59, Computers: 68",
+        {
+            "ForestName": "crowell.local",
+            "ForestMode": 4,
+            "DomainControllers": [
+                {
+                    "Name": "SERVER-FS1",
+                    "OperatingSystem": "Windows Server 2008 R2 Standard",
+                    "IPAddress": "192.168.0.7",
+                    "Site": "Default-First-Site-Name",
+                    "IsReadOnly": false,
+                    "IsGlobalCatalog": true
+                }
+            ],
+            "PDCEmulator": "server-fs1.crowell.local",
+            "UserCount": 59,
+            "NetBIOSName": "CROWELL",
+            "DomainMode": 4,
+            "RIDMaster": "server-fs1.crowell.local",
+            "ComputerCount": 68,
+            "InfrastructureMaster": "server-fs1.crowell.local",
+            "DomainNamingMaster": "server-fs1.crowell.local",
+            "DomainName": "crowell.local",
+            "SchemaMaster": "server-fs1.crowell.local"
+        }
+    ],
+    "FileShares": [
+        "[INFO][FileShares] Checking File Shares...",
+        "[INFO][FileShares] Share: Admin_Scan - Path: C:\\data\\Admin_Scan",
+        "[INFO][FileShares] Share: apps - Path: C:\\apps",
+        "[INFO][FileShares] Share: data - Path: C:\\data",
+        "[INFO][FileShares] Share: HHTTemp - Path: C:\\HHTTemp",
+        "[INFO][FileShares] Share: KRONOS - Path: C:\\KRONOS",
+        "[INFO][FileShares] Share: NETLOGON - Path: C:\\Windows\\SYSVOL\\sysvol\\crowell.local\\SCRIPTS",
+        "[INFO][FileShares] Share: Nursing Scan - Path: C:\\data\\Nursing Scan",
+        "[INFO][FileShares] Share: Scan - Path: C:\\data\\Scan",
+        "[INFO][FileShares] Share: support - Path: C:\\support",
+        "[INFO][FileShares] Share: SYSVOL - Path: C:\\Windows\\SYSVOL\\sysvol",
+        {
+            "Path": "C:\\data\\Admin_Scan",
+            "Description": "",
+            "Name": "Admin_Scan",
+            "SizeGB": 0,
+            "Permissions": [
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\wrksystems",
+                    "Access": "Full Control"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\Scan_Admin_Group",
+                    "Access": "Full Control"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\Scan_Admin",
+                    "Access": "Full Control"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\scanner",
+                    "Access": "Full Control"
+                }
+            ]
+        },
+        {
+            "Path": "C:\\apps",
+            "Description": "",
+            "Name": "apps",
+            "SizeGB": 0.61,
+            "Permissions": [
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\Domain Admins",
+                    "Access": "Full Control"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\Domain Users",
+                    "Access": "Full Control"
+                }
+            ]
+        },
+        {
+            "Path": "C:\\data",
+            "Description": "",
+            "Name": "data",
+            "SizeGB": 2.25,
+            "Permissions": [
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\Domain Admins",
+                    "Access": "Full Control"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\Domain Users",
+                    "Access": "Full Control"
+                }
+            ]
+        },
+        {
+            "Path": "C:\\HHTTemp",
+            "Description": "",
+            "Name": "HHTTemp",
+            "SizeGB": 0.01,
+            "Permissions": [
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\Domain Admins",
+                    "Access": "Full Control"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\Domain Users",
+                    "Access": "Full Control"
+                }
+            ]
+        },
+        {
+            "Path": "C:\\KRONOS",
+            "Description": "",
+            "Name": "KRONOS",
+            "SizeGB": 0.16,
+            "Permissions": [
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\Domain Admins",
+                    "Access": "Full Control"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "\\",
+                    "Access": "Full Control"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\Domain Users",
+                    "Access": "Full Control"
+                }
+            ]
+        },
+        {
+            "Path": "C:\\Windows\\SYSVOL\\sysvol\\crowell.local\\SCRIPTS",
+            "Description": "Logon server share ",
+            "Name": "NETLOGON",
+            "SizeGB": 0,
+            "Permissions": [
+                {
+                    "Type": "Allow",
+                    "Trustee": "\\Everyone",
+                    "Access": "Read"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "BUILTIN\\Administrators",
+                    "Access": "Full Control"
+                }
+            ]
+        },
+        {
+            "Path": "C:\\data\\Nursing Scan",
+            "Description": "",
+            "Name": "Nursing Scan",
+            "SizeGB": 0.41,
+            "Permissions": [
+                {
+                    "Type": "Allow",
+                    "Trustee": "BUILTIN\\Administrators",
+                    "Access": "Full Control"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "\\Everyone",
+                    "Access": "Full Control"
+                }
+            ]
+        },
+        {
+            "Path": "C:\\data\\Scan",
+            "Description": "OfficeJet 9010 scans here",
+            "Name": "Scan",
+            "SizeGB": 0,
+            "Permissions": [
+                {
+                    "Type": "Allow",
+                    "Trustee": "\\Everyone",
+                    "Access": "Read"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\nursing",
+                    "Access": "Full Control"
+                }
+            ]
+        },
+        {
+            "Path": "C:\\support",
+            "Description": "",
+            "Name": "support",
+            "SizeGB": 17.67,
+            "Permissions": [
+                {
+                    "Type": "Allow",
+                    "Trustee": "\\",
+                    "Access": "Change"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "CROWELL\\Domain Users",
+                    "Access": "Change"
+                }
+            ]
+        },
+        {
+            "Path": "C:\\Windows\\SYSVOL\\sysvol",
+            "Description": "Logon server share ",
+            "Name": "SYSVOL",
+            "SizeGB": 0,
+            "Permissions": [
+                {
+                    "Type": "Allow",
+                    "Trustee": "\\Everyone",
+                    "Access": "Read"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "BUILTIN\\Administrators",
+                    "Access": "Full Control"
+                },
+                {
+                    "Type": "Allow",
+                    "Trustee": "NT AUTHORITY\\Authenticated Users",
+                    "Access": "Full Control"
+                }
+            ]
+        }
+    ],
+    "InstalledFeatures": [
+        null,
+        "AD-Domain-Services",
+        "ADDS-Domain-Controller",
+        "DNS",
+        "File-Services",
+        "FS-FileServer",
+        "Web-Server",
+        "Web-WebServer",
+        "Web-App-Dev",
+        "Web-ISAPI-Filter",
+        "Web-Health",
+        "Web-ODBC-Logging",
+        "Web-Security",
+        "Web-Basic-Auth",
+        "Web-Windows-Auth",
+        "Web-Performance",
+        "Web-Stat-Compression",
+        "Web-Dyn-Compression",
+        "Web-Mgmt-Tools",
+        "Web-Mgmt-Console",
+        "Web-Mgmt-Compat",
+        "Web-Metabase",
+        "Web-Lgcy-Mgmt-Console",
+        "NET-Framework",
+        "NET-Framework-Core",
+        "GPMC",
+        "RSAT",
+        "RSAT-Role-Tools",
+        "RSAT-AD-Tools",
+        "RSAT-ADDS",
+        "RSAT-ADDS-Tools",
+        "RSAT-AD-AdminCenter",
+        "RSAT-AD-PowerShell",
+        "RSAT-DNS-Server",
+        "RSAT-Web-Server",
+        "RSAT-Feature-Tools",
+        "RSAT-SMTP",
+        "SMTP-Server",
+        "SNMP-Services",
+        "SNMP-Service",
+        "SNMP-WMI-Provider",
+        "PowerShell-ISE"
+    ],
+    "IIS": [
+        "[INFO][IIS] Checking IIS configuration...",
+        "[INFO][IIS] Site: Default Web Site - State: Started",
+        {
+            "AppPools": [
+                {
+                    "ManagedRuntimeVersion": "v4.0",
+                    "Name": "ASP.NET v4.0",
+                    "ManagedPipelineMode": "Integrated",
+                    "State": "Started"
+                },
+                {
+                    "ManagedRuntimeVersion": "v4.0",
+                    "Name": "ASP.NET v4.0 Classic",
+                    "ManagedPipelineMode": "Classic",
+                    "State": "Started"
+                },
+                {
+                    "ManagedRuntimeVersion": "v4.0",
+                    "Name": "DefaultAppPool",
+                    "ManagedPipelineMode": "Integrated",
+                    "State": "Started"
+                }
+            ],
+            "Sites": [
+                {
+                    "PhysicalPath": "%SystemDrive%\\inetpub\\wwwroot",
+                    "ID": 1,
+                    "Bindings": [
+                        {
+                            "Protocol": "http",
+                            "BindingInformation": "*:80:"
+                        },
+                        {
+                            "Protocol": "net.tcp",
+                            "BindingInformation": "808:*"
+                        },
+                        {
+                            "Protocol": "net.pipe",
+                            "BindingInformation": "*"
+                        },
+                        {
+                            "Protocol": "net.msmq",
+                            "BindingInformation": "localhost"
+                        },
+                        {
+                            "Protocol": "msmq.formatname",
+                            "BindingInformation": "localhost"
+                        }
+                    ],
+                    "State": "Started",
+                    "Name": "Default Web Site"
+                }
+            ]
+        }
+    ],
+    "DHCP": [
+        "[INFO][DHCP] Checking DHCP Server configuration...",
+        "[INFO][DHCP] DHCP Server role not installed",
+        null
+    ],
+    "PrintServer": [
+        "[INFO][PrintServer] Checking Print Server configuration...",
+        "[INFO][PrintServer] Print Services role not installed",
+        null
+    ],
+    "AdditionalServices": [
+        "[INFO][Services] Checking additional services...",
+        {}
+    ],
+    "DNS": [
+        "[INFO][DNS] Checking DNS Server configuration...",
+        "[INFO][DNS] Zone: _msdcs.crowell.local - Type: 1",
+        "[INFO][DNS] Zone: 0.168.192.in-addr.arpa - Type: 1",
+        "[INFO][DNS] Zone: cmh.com - Type: 4",
+        "[INFO][DNS] Zone: crowell.local - Type: 1",
+        {
+            "ServerName": "SERVER-FS1",
+            "Zones": [
+                {
+                    "RecordCount": 12,
+                    "ZoneType": 1,
+                    "DynamicUpdate": 2,
+                    "ZoneName": "_msdcs.crowell.local",
+                    "DataFile": null
+                },
+                {
+                    "RecordCount": 22,
+                    "ZoneType": 1,
+                    "DynamicUpdate": 2,
+                    "ZoneName": "0.168.192.in-addr.arpa",
+                    "DataFile": null
+                },
+                {
+                    "RecordCount": 0,
+                    "ZoneType": 4,
+                    "DynamicUpdate": 0,
+                    "ZoneName": "cmh.com",
+                    "DataFile": null
+                },
+                {
+                    "RecordCount": 78,
+                    "ZoneType": 1,
+                    "DynamicUpdate": 2,
+                    "ZoneName": "crowell.local",
+                    "DataFile": null
+                }
+            ]
+        }
+    ],
+    "AuditDate": "2025-12-05 10:52:48"
+}
