@@ -1,0 +1,4 @@
+SiteUID,DeviceUID,DeviceHostname,DeviceType,OperatingSystem,DeviceOnline,SoftwareName,SoftwareVersion,LastAuditDate,SyncedAt
+ea514805-d152-4bd4-a3f1-8de6e4b603d4,abc-123-device-uid,EXAMPLE-PC-01,Workstation,Windows 10 Pro,true,Microsoft Office,16.0.5,2025-01-18T10:30:00.000Z,2025-01-18T15:45:00.000Z
+ea514805-d152-4bd4-a3f1-8de6e4b603d4,abc-123-device-uid,EXAMPLE-PC-01,Workstation,Windows 10 Pro,true,Google Chrome,120.0.6099.129,2025-01-18T10:30:00.000Z,2025-01-18T15:45:00.000Z
+ea514805-d152-4bd4-a3f1-8de6e4b603d4,def-456-device-uid,EXAMPLE-SERVER-01,Server,Windows Server 2019,true,Microsoft Office,16.0.3,2025-01-18T09:15:00.000Z,2025-01-18T15:45:00.000Z

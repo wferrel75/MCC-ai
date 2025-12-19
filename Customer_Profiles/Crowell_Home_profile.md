@@ -9,7 +9,7 @@
 **Website:** http://www.crowellhome.com/
 **Main Phone:** (402) 426-2177
 **Profile Created Date:**
-**Last Updated:** 2025-12-05 (Added CEO and Primary Technical Contact information)
+**Last Updated:** 2025-12-12 (Added Microsoft 365 licensing information from invoice)
 **Account Manager:**
 **Primary Technical Contact:** Kylea Punke - Business Office Manager (kpunke@crowellhome.com)
 **CEO:** Jaclyn Svendgard (jmsvendgard4@gmail.com)
@@ -20,8 +20,8 @@
 ## Business Overview
 
 ### Company Information
-- **Number of Employees:** TBD (estimated 50-100 based on facility size)
-- **Number of IT Staff:** TBD (likely 0-1, may outsource)
+- **Number of Employees:** 47 active employees (verified from employee list 2025-12-12)
+- **Number of IT Staff:** 0 (outsourced to MCC)
 - **Annual Revenue Range:** TBD
 - **Business Type:** [ ] B2B [X] B2C [ ] B2B2C [X] Non-Profit [ ] Government
 - **Critical Business Hours:** 24/7/365 (residential healthcare facility)
@@ -93,15 +93,46 @@
 
 ### User Count by Category
 ```
-Total Users: TBD (estimated 50-100 staff)
-├─ Executive/Leadership: ___ (Administrator, Director of Nursing, etc.)
-├─ Knowledge Workers (Office/Hybrid): ___ (billing, admissions, social services)
-├─ Remote Workers: ___ (possibly billing or administrative)
-├─ Field/Mobile Workers: N/A
-├─ Factory/Warehouse Workers: N/A
-├─ Healthcare Staff: ___ (RNs, LPNs, CNAs, activities, dietary)
-├─ Contractors/Temporary: ___ (contract nurses, per diem staff)
-└─ Service Accounts/Shared Mailboxes: ___ (nursing stations, admissions, billing)
+Total Employees: 47 (from employee list dated 2025-12-12)
+Active Directory Users: 59 (from server audit - includes service/shared accounts)
+
+EMPLOYEE BREAKDOWN BY DEPARTMENT:
+├─ Executive/Leadership: 3
+│  ├─ 000860 Administration/CEO: 2 (Jaclyn Svendgard, Jacqui Slinkard)
+│  └─ 000861 (Terry Wulf)
+├─ Knowledge Workers (Office/Dedicated Computers): 12
+│  ├─ 000601 RN/Administrative: 7 (includes Prudence Cemer, Nancy Pedersen, etc.)
+│  ├─ 000775 Business Office: 2 (Kylea Punke, Mimi Cemer)
+│  ├─ 000800 Social Services: 1 (Teresa Modahl)
+│  ├─ 000630 Activities: 1 (Sydney Baird - Allison Dovico shares computer)
+│  └─ 000635 Dietary: 1 (Jill Nelson)
+├─ Clinical Staff (Shared Workstations): 37
+│  ├─ 000602 LPN (Licensed Practical Nurses): 3
+│  ├─ 000604 Med Aides/CNAs: 27 (largest department)
+│  ├─ 000601 RN (included in administrative count above): 7
+│  └─ Note: These staff share nursing station computers
+├─ Support Staff: 4
+│  ├─ 000820 Housekeeping: 1 (Katie Keller - no dedicated computer)
+│  └─ 000830 Maintenance: 2 (Derick Austin + Warren Austin who shares computer)
+├─ Remote Workers: 0 (all staff work on-site)
+├─ Contractors/Temporary: Unknown (not in employee list)
+└─ Service Accounts/Shared Mailboxes: 12 (estimated)
+   └─ Server audit shows 59 AD users vs. 47 employees
+   └─ Difference likely: nursing station shared logins, department accounts,
+      service accounts, or inactive users to be cleaned up
+
+MICROSOFT 365 LICENSING REQUIREMENT:
+├─ Individual Licenses Needed: 47 (one per employee)
+├─ Additional Licenses (optional): 5-10
+│  └─ Shared nursing station accounts (if needed for email/Teams)
+│  └─ Service accounts (if needed for applications)
+└─ TOTAL ESTIMATED: 47-57 licenses (vs. original estimate of 59)
+
+COMPUTER COUNT:
+├─ Dedicated Computers: 12 (first 13 employees minus Katie Keller)
+├─ Shared Computers: 2 (Allison + Sydney, Warren + Derick)
+├─ Nursing Station Computers: Unknown (estimated 5-10 shared workstations)
+└─ TOTAL FROM SERVER AUDIT: 68 computers (includes nursing stations, kiosks, etc.)
 ```
 
 ### User Distribution
@@ -225,19 +256,27 @@ sites:
 - **M365 Tenant Domain(s):** TBD
 - **Primary Domain:** TBD (likely crowellhome.com or related)
 - **Additional Domains:** TBD
-- **Tenant Type:** [X] Commercial [ ] GCC [ ] GCC High [ ] DoD
+- **Tenant Type:** [ ] Commercial [ ] GCC [ ] GCC High [ ] DoD [X] Nonprofit
+- **Order Number:** d961c2a7-b6e1-4294-aa18-0d4f520250d4
+- **Billing:** Monthly subscription (auto-payment)
 
 **Current Licenses (by SKU and count):**
 ```
-SKU Name                                    | Count | Notes
--------------------------------------------|-------|-------
-Microsoft 365 Business Basic               |       | Administrative staff
-Microsoft 365 Business Standard            |       | Office workers
-Microsoft 365 Business Premium             |       | Management
-Office 365 E1                              |       | Staff with email only needs
-Teams Phone Standard                       |       | Main number, departments
-[Other]                                    |       |
+SKU Name                                         | Count | Monthly Cost | Notes
+-------------------------------------------------|-------|--------------|-------
+Microsoft 365 Business Premium (Nonprofit)       | 10    | $0.00 (FREE) | DONATED - Nonprofit Staff Pricing
+  - Includes: Exchange Online, SharePoint,       |       |              | Invoice: E0700Y4IH2 (Nov 2025)
+    OneDrive, Teams, Intune, Azure AD Premium P1 |       |              | Service Period: 10/10/2025-11/09/2025
+                                                 |       |              | ⚠️ FREE grant ends July 1, 2025*
 ```
+
+**IMPORTANT LICENSING NOTES:**
+- ⚠️ **Current Status:** Receiving 10 FREE licenses as nonprofit donation
+- ⚠️ **July 1, 2025 Change:** Microsoft ending FREE Business Premium/E1 grants for new applicants
+- **Current invoice (Nov 2025) still shows $0.00** - may be grandfathered or grace period
+- **Migration Requirement:** Need 59 total licenses (49 additional licenses required)
+- **Future Pricing:** Additional licenses likely ~$5.50/user/month (nonprofit discount pricing)
+- **See Migration Project:** `Crowell_Projects/02_Azure_AD_Migration/planning/Nonprofit_Licensing_Options.md`
 
 **M365 Services in Use:**
 - [ ] Exchange Online (Email)
@@ -756,7 +795,7 @@ Potential Areas (to be confirmed with customer):
 - [X] Infrastructure relocation project scoped
 - [X] On-premises Active Directory documented (Server 2008 R2 - EOL)
 - [X] Azure AD migration project planned (CRITICAL PRIORITY)
-- [ ] Current Microsoft 365 licensing documented
+- [X] Current Microsoft 365 licensing documented (10 FREE Business Premium licenses)
 - [ ] Security posture assessed (MFA needs assessment)
 - [ ] Backup strategy documented
 - [X] Pain points and objectives identified (Server EOL, policy files)

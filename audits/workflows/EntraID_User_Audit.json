@@ -1,0 +1,770 @@
+{
+  "name": "EntraID - User Audit",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ],
+      "disabled": true,
+      "notes": "Disabled by default - enable after testing. Runs daily at 2:00 AM."
+    },
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        480
+      ],
+      "notes": "Use this for testing. Disable after going to production."
+    },
+    {
+      "parameters": {
+        "url": "https://login.microsoftonline.com/{{$env.ENTRA_TENANT_ID}}/oauth2/v2.0/token",
+        "authentication": "none",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "client_id",
+              "value": "={{$env.ENTRA_CLIENT_ID}}"
+            },
+            {
+              "name": "client_secret",
+              "value": "={{$env.ENTRA_CLIENT_SECRET}}"
+            },
+            {
+              "name": "scope",
+              "value": "https://graph.microsoft.com/.default"
+            },
+            {
+              "name": "grant_type",
+              "value": "client_credentials"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-token",
+      "name": "Get Access Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        380
+      ],
+      "notes": "Authenticates with Microsoft and retrieves OAuth token"
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.microsoft.com/v1.0/users?$select=id,userPrincipalName,displayName,givenName,surname,mail,accountEnabled,createdDateTime,jobTitle,department,userType&$top=999",
+        "authentication": "none",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.access_token}}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "get-users",
+      "name": "Get Users - First Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        380
+      ],
+      "notes": "Gets first page of users (up to 999)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract access token for later use\nconst token = $input.first().json.body.access_token;\n\n// Extract users from first page\nconst users = $input.first().json.body.value || [];\nlet nextLink = $input.first().json.body['@odata.nextLink'] || null;\n\n// Store token and initial users\nlet allUsers = users;\n\n// Pagination loop - get remaining pages\nwhile (nextLink) {\n  try {\n    const response = await $http.request({\n      method: 'GET',\n      url: nextLink,\n      headers: {\n        'Authorization': `Bearer ${token}`\n      }\n    });\n    \n    const pageUsers = response.value || [];\n    allUsers = allUsers.concat(pageUsers);\n    nextLink = response['@odata.nextLink'] || null;\n    \n    // Optional: Add small delay to avoid rate limiting\n    await new Promise(resolve => setTimeout(resolve, 100));\n  } catch (error) {\n    console.error('Error fetching page:', error.message);\n    break;\n  }\n}\n\n// Return all users with token\nreturn [\n  {\n    json: {\n      token: token,\n      users: allUsers,\n      total_count: allUsers.length\n    }\n  }\n];"
+      },
+      "id": "handle-pagination",
+      "name": "Handle Pagination",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        380
+      ],
+      "notes": "Loops through all pages to get complete user list"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get token and users from previous node\nconst data = $input.first().json;\nconst token = data.token;\nconst users = data.users;\n\n// Transform each user into a separate item\nreturn users.map(user => ({\n  json: {\n    user: user,\n    token: token\n  }\n}));"
+      },
+      "id": "split-users",
+      "name": "Split Users",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        380
+      ],
+      "notes": "Converts user array to individual items for processing"
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "id": "split-batches",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1340,
+        380
+      ],
+      "notes": "Process 10 users at a time to avoid rate limits"
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.microsoft.com/v1.0/users/{{$json.user.id}}/memberOf",
+        "authentication": "none",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.token}}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "get-memberof",
+      "name": "Get MemberOf (Roles/Groups)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1560,
+        280
+      ],
+      "notes": "Gets user's group memberships and directory roles"
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.microsoft.com/v1.0/users/{{$json.user.id}}/authentication/methods",
+        "authentication": "none",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.token}}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "get-auth-methods",
+      "name": "Get Authentication Methods (MFA)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1560,
+        480
+      ],
+      "notes": "Gets authentication methods to determine MFA status"
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.microsoft.com/v1.0/users/{{$json.user.id}}/licenseDetails",
+        "authentication": "none",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.token}}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "get-licenses",
+      "name": "Get License Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1560,
+        680
+      ],
+      "notes": "Gets assigned licenses for the user"
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.microsoft.com/v1.0/users/{{$json.user.id}}?$select=signInActivity",
+        "authentication": "none",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.token}}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "get-signin",
+      "name": "Get Sign-In Activity (Premium)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1560,
+        880
+      ],
+      "notes": "Gets last sign-in time (requires Azure AD Premium P1/P2)",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "merge-data",
+      "name": "Merge User Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        1780,
+        380
+      ],
+      "notes": "Combines user data with roles, auth methods, and licenses"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all enriched user data\nconst items = $input.all();\n\n// Transform each user to common schema\nreturn items.map(item => {\n  const user = item.json.user || {};\n  const memberOf = item.json.memberOf?.value || [];\n  const authMethods = item.json.authMethods?.value || [];\n  const licenses = item.json.licenses?.value || [];\n  const signIn = item.json.signIn || {};\n  \n  // Extract directory roles (not groups)\n  const roles = memberOf\n    .filter(m => m['@odata.type'] === '#microsoft.graph.directoryRole')\n    .map(r => r.displayName);\n  \n  // Determine MFA status\n  // More than 1 auth method = MFA enabled\n  // Only password method = MFA disabled\n  const mfaEnabled = authMethods.length > 1;\n  \n  // Extract license SKUs\n  const licenseList = licenses.map(l => l.skuPartNumber || l.skuId);\n  \n  // Get last login\n  const lastLogin = signIn.signInActivity?.lastSignInDateTime || null;\n  \n  return {\n    json: {\n      source_platform: 'Microsoft Entra ID',\n      user_id: user.id || '',\n      username: user.userPrincipalName || '',\n      email: user.mail || user.userPrincipalName || '',\n      display_name: user.displayName || '',\n      first_name: user.givenName || '',\n      last_name: user.surname || '',\n      account_enabled: user.accountEnabled === true,\n      account_created: user.createdDateTime || null,\n      last_login: lastLogin,\n      mfa_enabled: mfaEnabled,\n      roles: JSON.stringify(roles),\n      permissions: JSON.stringify([]), // Not detailed in this version\n      licenses: JSON.stringify(licenseList),\n      tenant_id: $env.ENTRA_TENANT_ID || 'unknown',\n      last_audit_date: new Date().toISOString(),\n      collection_method: 'api',\n      raw_data: JSON.stringify({\n        user: user,\n        roles: roles,\n        authMethodCount: authMethods.length,\n        licenses: licenseList\n      })\n    }\n  };\n});"
+      },
+      "id": "transform-schema",
+      "name": "Transform to Common Schema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        380
+      ],
+      "notes": "Maps Entra ID fields to common schema for data table"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": "UserAudit",
+        "columnToMatchOn": "user_id",
+        "fieldsToSend": "defineBelow",
+        "fields": {
+          "mappings": [
+            {
+              "fieldName": "source_platform",
+              "fieldValue": "={{$json.source_platform}}"
+            },
+            {
+              "fieldName": "user_id",
+              "fieldValue": "={{$json.user_id}}"
+            },
+            {
+              "fieldName": "username",
+              "fieldValue": "={{$json.username}}"
+            },
+            {
+              "fieldName": "email",
+              "fieldValue": "={{$json.email}}"
+            },
+            {
+              "fieldName": "display_name",
+              "fieldValue": "={{$json.display_name}}"
+            },
+            {
+              "fieldName": "first_name",
+              "fieldValue": "={{$json.first_name}}"
+            },
+            {
+              "fieldName": "last_name",
+              "fieldValue": "={{$json.last_name}}"
+            },
+            {
+              "fieldName": "account_enabled",
+              "fieldValue": "={{$json.account_enabled}}"
+            },
+            {
+              "fieldName": "account_created",
+              "fieldValue": "={{$json.account_created}}"
+            },
+            {
+              "fieldName": "last_login",
+              "fieldValue": "={{$json.last_login}}"
+            },
+            {
+              "fieldName": "mfa_enabled",
+              "fieldValue": "={{$json.mfa_enabled}}"
+            },
+            {
+              "fieldName": "roles",
+              "fieldValue": "={{$json.roles}}"
+            },
+            {
+              "fieldName": "permissions",
+              "fieldValue": "={{$json.permissions}}"
+            },
+            {
+              "fieldName": "licenses",
+              "fieldValue": "={{$json.licenses}}"
+            },
+            {
+              "fieldName": "tenant_id",
+              "fieldValue": "={{$json.tenant_id}}"
+            },
+            {
+              "fieldName": "last_audit_date",
+              "fieldValue": "={{$json.last_audit_date}}"
+            },
+            {
+              "fieldName": "collection_method",
+              "fieldValue": "={{$json.collection_method}}"
+            },
+            {
+              "fieldName": "raw_data",
+              "fieldValue": "={{$json.raw_data}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "store-data",
+      "name": "Store in Data Table",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        380
+      ],
+      "notes": "Upserts data into UserAudit table (updates existing or inserts new)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$node[\"Split In Batches\"].json.done}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-done",
+      "name": "Check If Done",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        380
+      ],
+      "notes": "Checks if all batches are processed"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Count results from data table operations\nconst items = $input.all();\nconst userCount = items.length;\n\nreturn [{\n  json: {\n    success: true,\n    platform: 'Microsoft Entra ID',\n    users_collected: userCount,\n    timestamp: new Date().toISOString(),\n    message: `✅ Successfully collected ${userCount} users from Microsoft Entra ID`\n  }\n}];"
+      },
+      "id": "success-summary",
+      "name": "Success Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        280
+      ],
+      "notes": "Creates success summary for notification"
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@midcloudcomputing.com",
+        "toEmail": "={{$env.NOTIFICATION_EMAIL}}",
+        "subject": "=✅ Entra ID User Audit Complete",
+        "emailType": "text",
+        "message": "=Entra ID User Audit completed successfully.\n\nPlatform: {{$json.platform}}\nUsers Collected: {{$json.users_collected}}\nTimestamp: {{$json.timestamp}}\n\nAll user data has been stored in the UserAudit data table."
+      },
+      "id": "send-success-email",
+      "name": "Send Success Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2880,
+        280
+      ],
+      "disabled": true,
+      "notes": "Disabled by default - configure email settings and enable"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": []
+        }
+      },
+      "id": "error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        2440,
+        600
+      ],
+      "notes": "Catches any workflow errors"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get error details\nconst error = $input.first().json;\n\nreturn [{\n  json: {\n    success: false,\n    platform: 'Microsoft Entra ID',\n    error_message: error.message || 'Unknown error',\n    error_node: error.node?.name || 'Unknown node',\n    timestamp: new Date().toISOString(),\n    message: `❌ Entra ID audit failed at node: ${error.node?.name || 'Unknown'}\\nError: ${error.message || 'Unknown error'}`\n  }\n}];"
+      },
+      "id": "error-summary",
+      "name": "Error Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        600
+      ],
+      "notes": "Formats error details for notification"
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@midcloudcomputing.com",
+        "toEmail": "={{$env.NOTIFICATION_EMAIL}}",
+        "subject": "=❌ Entra ID User Audit FAILED",
+        "emailType": "text",
+        "message": "=Entra ID User Audit failed.\n\nPlatform: {{$json.platform}}\nError Node: {{$json.error_node}}\nError Message: {{$json.error_message}}\nTimestamp: {{$json.timestamp}}\n\nPlease check the workflow execution in n8n."
+      },
+      "id": "send-error-email",
+      "name": "Send Error Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2880,
+        600
+      ],
+      "disabled": true,
+      "notes": "Disabled by default - configure email settings and enable"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Simple logging for testing\nconst data = $input.first().json;\nconsole.log('Workflow result:', JSON.stringify(data, null, 2));\nreturn [$input.first()];"
+      },
+      "id": "log-result",
+      "name": "Log Result (Testing)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3100,
+        380
+      ],
+      "notes": "Logs output for testing - can be removed in production"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Access Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Access Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Access Token": {
+      "main": [
+        [
+          {
+            "node": "Get Users - First Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Users - First Page": {
+      "main": [
+        [
+          {
+            "node": "Handle Pagination",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Pagination": {
+      "main": [
+        [
+          {
+            "node": "Split Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Users": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Get MemberOf (Roles/Groups)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Authentication Methods (MFA)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get License Details",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Sign-In Activity (Premium)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get MemberOf (Roles/Groups)": {
+      "main": [
+        [
+          {
+            "node": "Merge User Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Authentication Methods (MFA)": {
+      "main": [
+        [
+          {
+            "node": "Merge User Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get License Details": {
+      "main": [
+        [
+          {
+            "node": "Merge User Data",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Get Sign-In Activity (Premium)": {
+      "main": [
+        [
+          {
+            "node": "Merge User Data",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge User Data": {
+      "main": [
+        [
+          {
+            "node": "Transform to Common Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform to Common Schema": {
+      "main": [
+        [
+          {
+            "node": "Store in Data Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store in Data Table": {
+      "main": [
+        [
+          {
+            "node": "Check If Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Done": {
+      "main": [
+        [
+          {
+            "node": "Success Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Success Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Result (Testing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Error Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "User Audit",
+      "id": "user-audit"
+    },
+    {
+      "name": "Microsoft",
+      "id": "microsoft"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "mcc-n8n-instance"
+  },
+  "pinData": {},
+  "versionId": "1.0.0"
+}

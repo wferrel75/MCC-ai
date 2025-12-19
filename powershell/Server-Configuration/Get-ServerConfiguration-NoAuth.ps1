@@ -19,8 +19,7 @@
 #region Configuration Variables
 
 # Webhook configuration for data submission
-$WebhookUrl = "https://n8n.midcloudcomputing.net/webhook/data-capture"
-$WebhookApiKey = "XcfZhBlXuq3XqH5?6t^SLkxXc;5Wl/?bJatfAp7"  # Replace with your actual API key
+$WebhookUrl = "https://your-n8n-instance/webhook/data-capture"
 $EnableWebhookSubmission = $true  # Set to $false to disable webhook submission
 
 #endregion
@@ -72,24 +71,22 @@ function Submit-DataToWebhook {
         [Parameter(Mandatory=$true)]
         [object]$Data,
         [Parameter(Mandatory=$true)]
-        [string]$WebhookUrl,
-        [Parameter(Mandatory=$true)]
-        [string]$ApiKey
+        [string]$WebhookUrl
     )
 
     try {
         Write-ComponentOutput -Section "Webhook" -Message "Submitting data to webhook..."
 
-        # Prepare headers (without Content-Type for PowerShell 3 compatibility)
+        # Prepare headers
         $headers = @{
-            "X-API-Key" = $ApiKey
+            "Content-Type" = "application/json"
         }
 
         # Convert data to JSON
         $jsonBody = $Data | ConvertTo-Json -Depth 10 -Compress
 
-        # Submit to webhook (use -ContentType parameter for PowerShell 3 compatibility)
-        $response = Invoke-RestMethod -Uri $WebhookUrl -Method Post -ContentType "application/json" -Headers $headers -Body $jsonBody -ErrorAction Stop
+        # Submit to webhook
+        $response = Invoke-RestMethod -Uri $WebhookUrl -Method Post -Headers $headers -Body $jsonBody -ErrorAction Stop
 
         Write-ComponentOutput -Section "Webhook" -Message "Data successfully submitted to webhook"
         Write-ComponentOutput -Section "Webhook" -Message "Response: $($response | ConvertTo-Json -Compress)"
@@ -1152,8 +1149,8 @@ function Start-ServerAudit {
     if ($EnableWebhookSubmission) {
         Write-ComponentOutput -Section "Main" -Message "Webhook submission is enabled"
 
-        if ($WebhookUrl -and $WebhookApiKey -and $WebhookUrl -ne "https://your-n8n-instance/webhook/data-capture" -and $WebhookApiKey -ne "your-api-key-here") {
-            $webhookSuccess = Submit-DataToWebhook -Data $results -WebhookUrl $WebhookUrl -ApiKey $WebhookApiKey
+        if ($WebhookUrl -and $WebhookUrl -ne "https://your-n8n-instance/webhook/data-capture") {
+            $webhookSuccess = Submit-DataToWebhook -Data $results -WebhookUrl $WebhookUrl
 
             if ($webhookSuccess) {
                 Write-ComponentOutput -Section "Main" -Message "Data successfully submitted to monitoring system"
@@ -1163,7 +1160,7 @@ function Start-ServerAudit {
             }
         }
         else {
-            Write-ComponentOutput -Section "Main" -Message "Webhook URL or API Key not configured. Please update the configuration variables." -Type "WARN"
+            Write-ComponentOutput -Section "Main" -Message "Webhook URL not configured. Please update the configuration variables." -Type "WARN"
         }
     }
     else {

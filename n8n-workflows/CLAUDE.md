@@ -42,6 +42,41 @@ The Connect Secure API (`Connect_Secure/swagger.yaml`) is a comprehensive REST A
 - `limit`: Result limit
 - `order_by`: Sort order
 
+## n8n Data Table Pattern
+
+**IMPORTANT:** When creating workflows that require n8n Data Tables, ALWAYS create a CSV setup file.
+
+### Standard Practice
+
+1. **Create CSV File:** `{TableName}_table_setup.csv`
+2. **Include Sample Data:** 2-3 rows demonstrating all data types
+3. **Document in Setup Guide:** Reference CSV import method
+4. **Commit to Git:** Keep table schema version controlled
+
+**See:** `TABLE_SETUP_PATTERN.md` for complete guidelines
+
+### Data Table CSV Format
+
+```csv
+ColumnName1,ColumnName2,ColumnName3
+example_value_1,example_value_2,example_value_3
+example_value_4,example_value_5,example_value_6
+```
+
+**Data Types:**
+- **String:** Plain text
+- **Boolean:** `true` or `false` (lowercase)
+- **DateTime:** ISO 8601 format (`2025-01-18T10:30:00.000Z`)
+- **Number:** Decimal or integer
+
+### Quick Example
+
+```csv
+DeviceID,DeviceName,IsOnline,LastSeen
+device-001,Server-01,true,2025-01-18T10:00:00.000Z
+device-002,Server-02,false,2025-01-17T22:30:00.000Z
+```
+
 ## Workflow Development
 
 ### Creating n8n Workflows for Connect Secure
